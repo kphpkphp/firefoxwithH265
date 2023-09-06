@@ -1,0 +1,10 @@
+[
+  {
+    "filename": "host-utils-117.0a1.en-US.win32.tar.gz",
+    "size": 76533245,
+    "algorithm": "sha512",
+    "digest": "d20dbbfb9b3a790ea764e24b3a479d457d54f7b8ceeb68dd4afa350b3b368d853d23d4e6baa826d20b2510f4db49c4c47eff723481b4f267dc0ceef713dc091d",
+    "unpack": true,
+    "visibility": "public"
+  }
+]
