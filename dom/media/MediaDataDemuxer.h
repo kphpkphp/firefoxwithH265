@@ -88,6 +88,11 @@ class MediaDataDemuxer : public DecoderDoctorLifeLogger<MediaDataDemuxer> {
   // used as reference time base.
   virtual bool ShouldComputeStartTime() const { return true; }
 
+  // virtual void classof(){
+
+  //   printf("this is the base class");
+  // }
+
  protected:
   virtual ~MediaDataDemuxer() = default;
 };

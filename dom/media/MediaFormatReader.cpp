@@ -777,14 +777,29 @@ RefPtr<MediaDataDemuxer::InitPromise> MediaFormatReader::DemuxerProxy::Init() {
   AUTO_PROFILER_LABEL("DemuxerProxy::Init", MEDIA_PLAYBACK);
   using InitPromise = MediaDataDemuxer::InitPromise;
 
+
+  //printf("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
+
+  //printf("%s",__func__);
+
+  //printf("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
+
   RefPtr<Data> data = mData;
   RefPtr<TaskQueue> taskQueue = mTaskQueue;
   return InvokeAsync(mTaskQueue, __func__,
                      [data, taskQueue]() {
+                      //这里也可以用printf输出
+                      //printf("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
                        if (!data->mDemuxer) {
                          return InitPromise::CreateAndReject(
                              NS_ERROR_DOM_MEDIA_CANCELED, __func__);
                        }
+                       //264和265都能走到这里，就是说data里是有mDemuxer成员的
+                       //printf("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$");
+                      //不能用typeof
+                      //auto types = typeid(data->mDemuxer);
+                      //printf("%s\n",types.name());
+                      //data->mDemuxer->classof();
                        return data->mDemuxer->Init();
                      })
       ->Then(
@@ -834,9 +849,13 @@ RefPtr<MediaDataDemuxer::InitPromise> MediaFormatReader::DemuxerProxy::Init() {
             data->mShouldComputeStartTime =
                 data->mDemuxer->ShouldComputeStartTime();
             data->mInitDone = true;
+            //H264的视频会走到这里
+            //printf("???????????????????????????????????????????????????????????????????");
             return InitPromise::CreateAndResolve(NS_OK, __func__);
           },
           [](const MediaResult& aError) {
+            //H265会走到这里
+            //printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
             return InitPromise::CreateAndReject(aError, __func__);
           });
 }
@@ -1154,6 +1173,11 @@ MediaFormatReader::AsyncReadMetadata() {
 
   MOZ_DIAGNOSTIC_ASSERT(mMetadataPromise.IsEmpty());
 
+  //__func__这个宏就是AsyncreadMetaData这个函数的字符串
+  //printf("##########################################################################\n");
+  //printf("%s\n",__func__);
+  //printf("##########################################################################\n");
+
   if (mInitDone) {
     // We are returning from dormant.
     MetadataHolder metadata;
@@ -1175,6 +1199,7 @@ void MediaFormatReader::OnDemuxerInitDone(const MediaResult& aResult) {
   AUTO_PROFILER_LABEL("MediaFormatReader::OnDemuxerInitDone", MEDIA_PLAYBACK);
   MOZ_ASSERT(OnTaskQueue());
   mDemuxerInitRequest.Complete();
+
 
   if (NS_FAILED(aResult) && StaticPrefs::media_playback_warnings_as_errors()) {
     mMetadataPromise.Reject(aResult, __func__);
@@ -1351,6 +1376,7 @@ bool MediaFormatReader::IsEncrypted() const {
 }
 
 void MediaFormatReader::OnDemuxerInitFailed(const MediaResult& aError) {
+  //printf("##########################################################################");
   mDemuxerInitRequest.Complete();
   mMetadataPromise.Reject(aError, __func__);
 }

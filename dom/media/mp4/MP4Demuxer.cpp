@@ -89,6 +89,8 @@ MP4Demuxer::MP4Demuxer(MediaResource* aResource)
 }
 
 RefPtr<MP4Demuxer::InitPromise> MP4Demuxer::Init() {
+  //AutoPinned：一个用于处理MediaResource及其派生类的固定和取消固定的RAII类，在进行涉及可能被缓存的MediaResource数据的计算时，应使用此类，以确保状态不会在操作过程中变化
+  //mStream成员是个ResourceStream类型
   AutoPinned<ResourceStream> stream(mStream);
 
   // 'result' will capture the first warning, if any.
@@ -108,7 +110,18 @@ RefPtr<MP4Demuxer::InitPromise> MP4Demuxer::Init() {
 
   RefPtr<BufferStream> bufferstream = new BufferStream(initData.Ref());
 
+  //看看这个metadata是什么东西
+  //metadata这个东西是定义在MP4metadata.h里的
   MP4Metadata metadata{bufferstream};
+  
+  // printf("\n#####################################################################\n");
+
+  // nsPrintfCString checkmetadata(metadata->);
+
+
+  // printf("\n#####################################################################\n");
+
+
   DDLINKCHILD("metadata", &metadata);
   nsresult rv = metadata.Parse();
   if (NS_FAILED(rv)) {
@@ -116,6 +129,10 @@ RefPtr<MP4Demuxer::InitPromise> MP4Demuxer::Init() {
         MediaResult(rv, RESULT_DETAIL("Parse MP4 metadata failed")), __func__);
   }
 
+  //在此处，medadata.GetNumberTracks方法执行的时候，265类型的视频无法找到视频和音频的track，所以报错
+
+  //264、265都能走到这里
+  //printf("\n#####################################################################\n");
   auto audioTrackCount = metadata.GetNumberTracks(TrackInfo::kAudioTrack);
   if (audioTrackCount.Ref() == MP4Metadata::NumberTracksError()) {
     if (StaticPrefs::media_playback_warnings_as_errors()) {
@@ -141,7 +158,8 @@ RefPtr<MP4Demuxer::InitPromise> MP4Demuxer::Init() {
     }
     videoTrackCount.Ref() = 0;
   }
-
+  //264和265都能走到这里
+ // printf("\n#####################################################################\n");
   if (audioTrackCount.Ref() == 0 && videoTrackCount.Ref() == 0) {
     return InitPromise::CreateAndReject(
         MediaResult(
@@ -151,7 +169,8 @@ RefPtr<MP4Demuxer::InitPromise> MP4Demuxer::Init() {
                           videoTrackCount.Result().Description().get())),
         __func__);
   }
-
+  //265走不到这里
+  //printf("\n#####################################################################\n");
   if (NS_FAILED(audioTrackCount.Result()) && result == NS_OK) {
     result = std::move(audioTrackCount.Result());
   }
@@ -325,6 +344,14 @@ MP4TrackDemuxer::MP4TrackDemuxer(MediaResource* aResource,
 
   VideoInfo* videoInfo = mInfo->GetAsVideoInfo();
   AudioInfo* audioInfo = mInfo->GetAsAudioInfo();
+
+  //265不会执行到这一步，看来是不会构造MP4TrackDemuxer
+  //printf("################################################################");
+
+  //printf("%s",mInfo->mMimeType.get());
+
+  //printf("################################################################");
+
   if (videoInfo && MP4Decoder::IsH264(mInfo->mMimeType)) {
     mType = kH264;
     RefPtr<MediaByteBuffer> extraData = videoInfo->mExtraData;

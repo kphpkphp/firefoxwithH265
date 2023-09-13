@@ -142,6 +142,10 @@ bool TrackTypeEqual(TrackInfo::TrackType aLHS, Mp4parseTrackType aRHS) {
 MP4Metadata::ResultAndTrackCount MP4Metadata::GetNumberTracks(
     mozilla::TrackInfo::TrackType aType) const {
   uint32_t tracks;
+
+  //printf("##################################################################");
+  //这里是rust，mp4parse_get_track_count看起来是个rust写的方法
+  //定义在media/mp4parse-rust/mp4parse_ffi_generated.h
   auto rv = mp4parse_get_track_count(mParser.get(), &tracks);
   if (rv != MP4PARSE_STATUS_OK) {
     MOZ_LOG(gMP4MetadataLog, LogLevel::Warning,
@@ -150,16 +154,22 @@ MP4Metadata::ResultAndTrackCount MP4Metadata::GetNumberTracks(
                         RESULT_DETAIL("Rust parser error %d", rv)),
             MP4Metadata::NumberTracksError()};
   }
-
+//printf("##################################################################");
+  
+  //没问题，这个方法可以获取视频tracks
+  //printf("\n%d\n",tracks);
   uint32_t total = 0;
   for (uint32_t i = 0; i < tracks; ++i) {
     Mp4parseTrackInfo track_info;
     rv = mp4parse_get_track_info(mParser.get(), i, &track_info);
     if (rv != MP4PARSE_STATUS_OK) {
+      //这一句不会执行，看来获取track_info是成功的
+      //printf("\nmp4parse_get_track_info失败\n");
       continue;
     }
 
     if (track_info.track_type == MP4PARSE_TRACK_TYPE_AUDIO) {
+      printf("\n there is a audio track ,i = %d\n",i);
       Mp4parseTrackAudioInfo audio;
       auto rv = mp4parse_get_track_audio_info(mParser.get(), i, &audio);
       if (rv != MP4PARSE_STATUS_OK) {
@@ -184,8 +194,29 @@ MP4Metadata::ResultAndTrackCount MP4Metadata::GetNumberTracks(
       }
     } else if (track_info.track_type == MP4PARSE_TRACK_TYPE_VIDEO) {
       Mp4parseTrackVideoInfo video;
+      
+      //264和265都能执行到这里，并且会输出两次这句话（为什么是两次？）
+      printf("\n there is a video track ,i = %d\n",i);
+      //printf("\n%s\n",mParser.get());
+
       auto rv = mp4parse_get_track_video_info(mParser.get(), i, &video);
+
+      //printf("\n%d\n",video.display_width);
+
+
+      
+       if(video.sample_info)
+       {
+         printf("\n%d\n",video.sample_info->codec_type);
+       }
+       else
+       {
+         printf("\n不存在video.sample_info\n");
+       }
       if (rv != MP4PARSE_STATUS_OK) {
+        //264在这里没有出错，265出错了
+        //265类型视频在mp4parse_get_track_video_info()中发生错误
+        //printf("\n the video data info get fault \n");
         MOZ_LOG(gMP4MetadataLog, LogLevel::Warning,
                 ("mp4parse_get_track_video_info returned error %d", rv));
         continue;
@@ -207,6 +238,8 @@ MP4Metadata::ResultAndTrackCount MP4Metadata::GetNumberTracks(
       }
     } else {
       // Only audio and video are supported
+      //没有执行到这里，看来是可以识别video和audio的？
+      //printf("\n there is no supported tracks\n");
       continue;
     }
     if (TrackTypeEqual(aType, track_info.track_type)) {

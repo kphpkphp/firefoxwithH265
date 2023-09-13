@@ -1,5 +1,5 @@
 //! C API for mp4parse module.
-//!
+//! Parses:解析，aka：as known as
 //! Parses ISO Base Media Format aka video/mp4 streams.
 //!
 //! # Examples
@@ -59,6 +59,16 @@ use mp4parse::TryBox;
 use mp4parse::TryHashMap;
 use mp4parse::TryVec;
 use mp4parse::VideoCodecSpecific;
+
+
+
+//###################################################### 测试用的添加 ####################################
+
+// use std::fs::File;
+// use std::io::Write;
+
+//#######################################################################################################
+
 
 // To ensure we don't use stdlib allocating types by accident
 #[allow(dead_code)]
@@ -885,11 +895,17 @@ fn get_track_audio_info(
 /// pointers passed to it. Callers should ensure the parser pointer points to a
 /// valid `Mp4parseParser` and that the info pointer points to a valid
 /// `Mp4parseTrackVideoInfo`.
+
+/// 这个函数是不安全的，因为它会解引用parser和info指针，调用者必须确保这两个指针是有效的
 #[no_mangle]
 pub unsafe extern "C" fn mp4parse_get_track_video_info(
+    
     parser: *mut Mp4parseParser,
+    
     track_index: u32,
+    
     info: *mut Mp4parseTrackVideoInfo,
+ 
 ) -> Mp4parseStatus {
     if parser.is_null() || info.is_null() {
         return Mp4parseStatus::BadArg;
@@ -900,11 +916,20 @@ pub unsafe extern "C" fn mp4parse_get_track_video_info(
 
     mp4parse_get_track_video_info_safe(&mut *parser, track_index, &mut *info).into()
 }
-
+/// 这个大概就是safe吧，指针不能无效
 fn mp4parse_get_track_video_info_safe(
+    //可变引用
     parser: &mut Mp4parseParser,
+    //无符号整数
     track_index: u32,
+    //可变引用
     info: &mut Mp4parseTrackVideoInfo,
+    //返回值是Result<(), Mp4parseStatus>，这表示返回可能是一个错误，如果是错误则返回相关错误状态
+    //Result是rust标准库中的一个枚举类型，有两个可能的变体：‘ok’和Err
+    //()表示一个空元组，类似于空值
+    //Mp4parseStatus是一个自定义的枚举类型，表示可能的错误状态
+    //如果执行成功，返回ok(())，表示成功并无附加返回值
+    //如果失败，返回Err(mp4parseStatus)，mp4parseStatus是一个表示错误的枚举值
 ) -> Result<(), Mp4parseStatus> {
     let context = parser.context();
 
@@ -939,8 +964,12 @@ fn mp4parse_get_track_video_info_safe(
     }
 
     // Handle track.stsd
+    //stsd的意思是：Sample Description
+    //match表达式：用于匹配track.stsd的值，track.stsd是一个可能包含视频样本描述的选项类型
     let stsd = match track.stsd {
+        //match表达式的一个分支，表示如果track.stsd非空，则将stsd提取出来，并绑定到新的变量stsd中，ref通过引用而不是拷贝来获取值
         Some(ref stsd) => stsd,
+        //match的另一个分支，处理stsd是none的情况，此处立刻返回Err
         None => return Err(Mp4parseStatus::Invalid), // Stsd should be present
     };
 
@@ -949,6 +978,21 @@ fn mp4parse_get_track_video_info_safe(
     }
 
     let mut video_sample_infos = TryVec::with_capacity(stsd.descriptions.len())?;
+    
+    //###############################    以下是测试     #########################################
+    //看来直接输出是不行的
+    // let content = "Hallo World";
+    // //println!("{}", message);
+    // //？这个符号是处理错误的方式，如果前面的表达式出错，就直接报错，如果没错，就继续执行
+    // let mut file = File::create("/home/oem/testdata/test")?;
+    // file.write_all(content.as_bytes())?;
+
+    //##############################################################################################
+
+    //sample_info
+    //这个地方开始处理码流之类的信息了
+    //但是现在不清楚，到底265类型视频是在哪个部分出错的
+    //既然这个rust是可以单独拿出来用的，那就考虑单独编译一个来用
     for description in stsd.descriptions.iter() {
         let mut sample_info = Mp4parseTrackVideoSampleInfo::default();
         let video = match description {
@@ -956,6 +1000,7 @@ fn mp4parse_get_track_video_info_safe(
             _ => return Err(Mp4parseStatus::Invalid),
         };
 
+        
         // UNKNOWN for unsupported format.
         sample_info.codec_type = match video.codec_specific {
             VideoCodecSpecific::VPxConfig(_) => Mp4parseCodec::Vp9,
