@@ -196,7 +196,7 @@ MP4Metadata::ResultAndTrackCount MP4Metadata::GetNumberTracks(
       Mp4parseTrackVideoInfo video;
       
       //264和265都能执行到这里，并且会输出两次这句话（为什么是两次？）
-      printf("\n there is a video track ,i = %d\n",i);
+      //printf("\n there is a video track ,i = %d\n",i);
       //printf("\n%s\n",mParser.get());
 
       auto rv = mp4parse_get_track_video_info(mParser.get(), i, &video);
@@ -205,14 +205,17 @@ MP4Metadata::ResultAndTrackCount MP4Metadata::GetNumberTracks(
 
 
       
-       if(video.sample_info)
-       {
-         printf("\n%d\n",video.sample_info->codec_type);
-       }
-       else
-       {
-         printf("\n不存在video.sample_info\n");
-       }
+      //  if(video.sample_info)
+      //  {
+      //    printf("\n%d\n",video.sample_info->codec_type);
+      //  }
+      //  else
+      //  {
+      //    printf("\n不存在video.sample_info\n");
+      //  }
+
+       //printf("这是%d",rv);
+
       if (rv != MP4PARSE_STATUS_OK) {
         //264在这里没有出错，265出错了
         //265类型视频在mp4parse_get_track_video_info()中发生错误
@@ -221,6 +224,8 @@ MP4Metadata::ResultAndTrackCount MP4Metadata::GetNumberTracks(
                 ("mp4parse_get_track_video_info returned error %d", rv));
         continue;
       }
+      //换rust库之后，265可以走到这里
+      //printf("#####################################################################");
       MOZ_DIAGNOSTIC_ASSERT(video.sample_info_count > 0,
                             "Must have at least one video sample info");
       if (video.sample_info_count == 0) {
@@ -246,7 +251,10 @@ MP4Metadata::ResultAndTrackCount MP4Metadata::GetNumberTracks(
       total += 1;
     }
   }
-
+  //成功，换rust库之后可以正常读取轨道数据，当前MP4Metadata这里已经没有问题
+  // printf("#####################################################################");
+  // printf("there is a tracks");
+  // printf("#####################################################################");
   MOZ_LOG(gMP4MetadataLog, LogLevel::Info,
           ("%s tracks found: %u", TrackTypeToString(aType), total));
 
