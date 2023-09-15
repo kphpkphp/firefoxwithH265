@@ -40,6 +40,8 @@ using TimeIntervals = media::TimeIntervals;
 
 DDLoggedTypeDeclNameAndBase(MP4TrackDemuxer, MediaTrackDemuxer);
 
+//MP4TrackDemuxer的构造函数参数包括一个TrackInfo指针，这个指针用于给成员mInfo赋值
+
 class MP4TrackDemuxer : public MediaTrackDemuxer,
                         public DecoderDoctorLifeLogger<MP4TrackDemuxer> {
  public:
@@ -113,13 +115,6 @@ RefPtr<MP4Demuxer::InitPromise> MP4Demuxer::Init() {
   //看看这个metadata是什么东西
   //metadata这个东西是定义在MP4metadata.h里的
   MP4Metadata metadata{bufferstream};
-  
-  // printf("\n#####################################################################\n");
-
-  // nsPrintfCString checkmetadata(metadata->);
-
-
-  // printf("\n#####################################################################\n");
 
 
   DDLINKCHILD("metadata", &metadata);
@@ -129,10 +124,6 @@ RefPtr<MP4Demuxer::InitPromise> MP4Demuxer::Init() {
         MediaResult(rv, RESULT_DETAIL("Parse MP4 metadata failed")), __func__);
   }
 
-  //在此处，medadata.GetNumberTracks方法执行的时候，265类型的视频无法找到视频和音频的track，所以报错
-
-  //264、265都能走到这里
-  //printf("\n#####################################################################\n");
   auto audioTrackCount = metadata.GetNumberTracks(TrackInfo::kAudioTrack);
   if (audioTrackCount.Ref() == MP4Metadata::NumberTracksError()) {
     if (StaticPrefs::media_playback_warnings_as_errors()) {
@@ -158,8 +149,6 @@ RefPtr<MP4Demuxer::InitPromise> MP4Demuxer::Init() {
     }
     videoTrackCount.Ref() = 0;
   }
-  //264和265都能走到这里
- // printf("\n#####################################################################\n");
   if (audioTrackCount.Ref() == 0 && videoTrackCount.Ref() == 0) {
     return InitPromise::CreateAndReject(
         MediaResult(
@@ -169,8 +158,6 @@ RefPtr<MP4Demuxer::InitPromise> MP4Demuxer::Init() {
                           videoTrackCount.Result().Description().get())),
         __func__);
   }
-  //265走不到这里
-  //printf("\n#####################################################################\n");
   if (NS_FAILED(audioTrackCount.Result()) && result == NS_OK) {
     result = std::move(audioTrackCount.Result());
   }
@@ -238,6 +225,17 @@ RefPtr<MP4Demuxer::InitPromise> MP4Demuxer::Init() {
       } else if (NS_FAILED(info.Result()) && result == NS_OK) {
         result = std::move(info.Result());
       }
+      
+      //GetTrackIndice返回ResultAndIndice类型，参数是 uint32_t aTrackId 
+      //using ResultAndIndice = ResultAndType<mozilla::UniquePtr<IndiceWrapper>>;
+      //ResultAndType定义在MP4Metadata.h里
+      //info是在上面几行定义的，MP4Metadata::ResultAndTrackInfo类型，看来这个是获取 aTrackId的
+      //indices.Ref()方法返回std::decay_t<T>类型,decay_t是标准库的东西，提供数组到指针、函数到指针、左值到右值的转换，decay 类型转换通常会将类型中的引用、const 修饰符和 volatile 修饰符都移除，同时保留类型的基本数据类型
+      //ResultAndIndice是个模板类，里面可以放T类型的东西，
+      //IndiceWrapper是模板T，IndiceWrapper是控制rust mp4 parser的外包装类，
+      //这个类的生命周期不能超过rust parser的生命周期
+      //这样的话，那就要考虑怎么用IndiceWrapper返回正确的track类型了
+      //这里获取的是ResultAndIndice
       MP4Metadata::ResultAndIndice indices =
           metadata.GetTrackIndice(info.Ref()->mTrackId);
       if (!indices.Ref()) {
@@ -246,6 +244,20 @@ RefPtr<MP4Demuxer::InitPromise> MP4Demuxer::Init() {
         }
         continue;
       }
+      //这里是构造MP4TrackDemuxer的地方
+      //这里，indices.Ref()获取的是ResultAndType的decay_t<T>类型成员，这个decay_t<T>应该是mozilla::MakeUnique<IndiceWrapper>(indiceRawData);（在MP4Metadata.cpp里有相关代码）
+      //unique的get()方法返回的是裸指针吧
+      //所以*indices.Ref().get()获取的就是indiceRawData对象，这个对象看来就是rust mp4 parser
+      //看构造函数，MP4TrackDemuxer的构造函数传入indiceRawData之后，应该还会构造成IndiceWrapper
+      //不对，不对，构造函数第二个参数才是 Info，第三个参数是aIndices
+      //不好的预感，感觉弄不好demux都是用rust库实现的
+      //info.Ref()这个就是info相关的东西了
+      //MP4Metadata::ResultAndTrackInfo info = metadata.GetTrackInfo(TrackInfo::kVideoTrack, i);
+      //ResultAndTrackInfo是个uniquePtr智能指针,这个Ref()不知道返回什么
+      //第二参数要求是 &&UniquePtr<TrackInfo>，这个值应该是 UniquePtr<TrackInfo>
+      //往上追一下，看看GetTrackInfo这个东西是怎么获取info的
+
+      //MP4Metadata::ResultAndTrackInfo MP4Metadata::GetTrackInfo
       RefPtr<MP4TrackDemuxer> demuxer =
           new MP4TrackDemuxer(mResource, std::move(info.Ref()),
                               *indices.Ref().get(), info.Ref()->mTimeScale);
@@ -340,17 +352,12 @@ MP4TrackDemuxer::MP4TrackDemuxer(MediaResource* aResource,
                                 mInfo->IsAudio(), aTimeScale)),
       mIterator(MakeUnique<SampleIterator>(mIndex)),
       mNeedReIndex(true) {
+      //265在此处就无法输出mMimeType
+  //printf("\n%s\n",mInfo->mMimeType.get());
   EnsureUpToDateIndex();  // Force update of index
 
   VideoInfo* videoInfo = mInfo->GetAsVideoInfo();
   AudioInfo* audioInfo = mInfo->GetAsAudioInfo();
-
-  //265不会执行到这一步，看来是不会构造MP4TrackDemuxer
-  //printf("################################################################");
-
-  //printf("%s",mInfo->mMimeType.get());
-
-  //printf("################################################################");
 
   if (videoInfo && MP4Decoder::IsH264(mInfo->mMimeType)) {
     mType = kH264;

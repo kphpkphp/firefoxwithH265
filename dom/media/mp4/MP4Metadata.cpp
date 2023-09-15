@@ -248,9 +248,11 @@ MP4Metadata::ResultAndTrackCount MP4Metadata::GetNumberTracks(
       continue;
     }
     if (TrackTypeEqual(aType, track_info.track_type)) {
+      //265可以走到这里
       total += 1;
     }
   }
+
   //成功，换rust库之后可以正常读取轨道数据，当前MP4Metadata这里已经没有问题
   // printf("#####################################################################");
   // printf("there is a tracks");
@@ -291,10 +293,17 @@ Maybe<uint32_t> MP4Metadata::TrackTypeToGlobalTrackIndex(
   return Nothing();
 }
 
+//这里是获取info的方法，23.9.15
+//此处获取到的H265视频info是空值
+//看一下如何获取
 MP4Metadata::ResultAndTrackInfo MP4Metadata::GetTrackInfo(
     mozilla::TrackInfo::TrackType aType, size_t aTrackNumber) const {
   Maybe<uint32_t> trackIndex = TrackTypeToGlobalTrackIndex(aType, aTrackNumber);
+  //printf("########################################################");
+  
   if (trackIndex.isNothing()) {
+    //OK，H265不能走到这里，trackIndex是有数据的
+    //printf("\nthere is no trackIndex\n");
     return {MediaResult(NS_ERROR_DOM_MEDIA_METADATA_ERR,
                         RESULT_DETAIL("No %s tracks", TrackTypeToStr(aType))),
             nullptr};
@@ -310,6 +319,9 @@ MP4Metadata::ResultAndTrackInfo MP4Metadata::GetTrackInfo(
                                       TrackTypeToStr(aType), aTrackNumber)),
             nullptr};
   }
+  //264和265输出的都是0，这个枚举定义在mp4parse_ffi_generated.h，0是MP4PARSE_TRACK_TYPE_VIDEO
+  //Mp4parseTrackInfo也定义在这个文件，包括track_type、track_id、duration、media_time、time_scale
+  //printf("\n%d\n",info.track_type);
 #ifdef DEBUG
   bool haveSampleInfo = false;
   const char* codecString = "unrecognized";
@@ -380,7 +392,7 @@ MP4Metadata::ResultAndTrackInfo MP4Metadata::GetTrackInfo(
   MOZ_LOG(gMP4MetadataLog, LogLevel::Debug,
           ("track codec %s (%u)\n", codecString, codecType));
 #endif
-
+//这里又get一次，获取到的东西放到info和track_info两个不同的结构体里了
   Mp4parseTrackInfo track_info;
   rv = mp4parse_get_track_info(mParser.get(), trackIndex.value(), &track_info);
   if (rv != MP4PARSE_STATUS_OK) {
@@ -396,6 +408,8 @@ MP4Metadata::ResultAndTrackInfo MP4Metadata::GetTrackInfo(
 
   // This specialization interface is wild.
   UniquePtr<mozilla::TrackInfo> e;
+  //此处，H264和H265输出的都是Video
+  //printf("\n%s\n",TrackTypeToStr(aType));
   switch (aType) {
     case TrackInfo::TrackType::kAudioTrack: {
       Mp4parseTrackAudioInfo audio;
@@ -434,10 +448,14 @@ MP4Metadata::ResultAndTrackInfo MP4Metadata::GetTrackInfo(
       e = std::move(track);
     } break;
     case TrackInfo::TrackType::kVideoTrack: {
+      //此结构体定义在mp4parse_ffi_generated.h，包括display_width、height、rotation、sample_info_count、const struct Mp4parseTrackVideoSampleInfo *sample_info;这几个成员
+      //Mp4parseTrackVideoSampleInfo也定义在这个文件中
       Mp4parseTrackVideoInfo video;
       auto rv = mp4parse_get_track_video_info(mParser.get(), trackIndex.value(),
                                               &video);
       if (rv != MP4PARSE_STATUS_OK) {
+        //H265也不会走到此处，视频信息获取是成功的
+        //printf("#################################################################");
         MOZ_LOG(gMP4MetadataLog, LogLevel::Warning,
                 ("mp4parse_get_track_video_info returned error %d", rv));
         return {MediaResult(NS_ERROR_DOM_MEDIA_METADATA_ERR,
@@ -445,9 +463,21 @@ MP4Metadata::ResultAndTrackInfo MP4Metadata::GetTrackInfo(
                                           TrackTypeToStr(aType), aTrackNumber)),
                 nullptr};
       }
+      //看看这个地方输出的是什么，能不能正常的获取到信息
+      //此处是可以正常获取到信息的
+      //264输出 1 4
+      //265输出 1 14
+      //也就是说265的codec_type枚举是能被识别到的
+      //printf("\n%d\n",video.sample_info_count);
+      //printf("\n%d\n",video.sample_info->codec_type);
+
+      //MP4VideoInfo类型定义在DecoderData.h，继承VideoInfo
       auto track = mozilla::MakeUnique<MP4VideoInfo>();
+      //看一下这个Update方法是怎么操作的
       MediaResult updateStatus = track->Update(&info, &video);
       if (NS_FAILED(updateStatus)) {
+        //265也不会执行到这里，update是成功的
+        //printf("#######################################################");
         MOZ_LOG(gMP4MetadataLog, LogLevel::Warning,
                 ("Updating video track failed with %s",
                  updateStatus.Message().get()));
@@ -482,7 +512,7 @@ MP4Metadata::ResultAndTrackInfo MP4Metadata::GetTrackInfo(
                               AssertedCast<int64_t>(fragmentInfo.time_scale));
     }
   }
-
+  //这里大概就是正常的情况，返回track信息
   if (e && e->IsValid()) {
     return {NS_OK, std::move(e)};
   }

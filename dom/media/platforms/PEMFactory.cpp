@@ -37,6 +37,7 @@ PEMFactory::PEMFactory() {
 #endif
 }
 
+//SupportsMimeType方法
 bool PEMFactory::SupportsMimeType(const nsACString& aMimeType) const {
   for (auto m : mModules) {
     if (m->SupportsMimeType(aMimeType)) {

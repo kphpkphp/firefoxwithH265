@@ -240,6 +240,9 @@ already_AddRefed<MediaDataDemuxer> DecoderTraits::CreateDemuxer(
   if (MP4Decoder::IsSupportedType(aType,
                                   /* DecoderDoctorDiagnostics* */ nullptr)) {
     demuxer = new MP4Demuxer(aResource);
+    //264和265也都能执行到这里
+    //printf("#########################################################");
+    //也许MP4Demuxer的构造函数里有问题？
   } else
 #endif
       if (MP3Decoder::IsSupportedType(aType)) {
@@ -255,6 +258,8 @@ already_AddRefed<MediaDataDemuxer> DecoderTraits::CreateDemuxer(
   } else if (WebMDecoder::IsSupportedType(aType)) {
     demuxer = new WebMDemuxer(aResource);
   }
+  //265和264都能执行到这里
+  //printf("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
 
   return demuxer.forget();
 }

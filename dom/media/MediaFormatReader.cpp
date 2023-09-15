@@ -636,11 +636,19 @@ class MediaFormatReader::DemuxerProxy::Wrapper : public MediaTrackDemuxer {
         "MediaFormatReader::DemuxerProxy::Wrapper", this, "track demuxer",
         aTrackDemuxer);
   }
-
+  //wrapper这个方法是MediaTrackDemuxer的一个实现
+  //wrapper::GetInfo这里大概就是获取videoInfo->mMimeType的地方
   UniquePtr<TrackInfo> GetInfo() const override {
     if (!mInfo) {
+     // printf("\n$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$\n");
       return nullptr;
     }
+    //奇怪，这里264和265全都能获取到TrackInfo
+    //获取Wrapper::mInfo
+    //mInfo是TrackInfo类型
+    //TrackInfo下面有mimetype
+    //OK，这里通过Printf确定，mInfo中就是空的，265的视频中没有mMimeType
+    //printf("\n%s\n",mInfo->mMimeType.get());
     return mInfo->Clone();
   }
 
@@ -731,6 +739,7 @@ class MediaFormatReader::DemuxerProxy::Wrapper : public MediaTrackDemuxer {
   Mutex mMutex MOZ_UNANNOTATED;
   const RefPtr<TaskQueue> mTaskQueue;
   const bool mGetSamplesMayBlock;
+  //这里是存放TrackInfo的地方？
   const UniquePtr<TrackInfo> mInfo;
   // mTrackDemuxer is only ever accessed on demuxer's task queue.
   RefPtr<MediaTrackDemuxer> mTrackDemuxer;
@@ -813,8 +822,10 @@ RefPtr<MediaDataDemuxer::InitPromise> MediaFormatReader::DemuxerProxy::Init() {
             data->mNumAudioTrack =
                 data->mDemuxer->GetNumberTracks(TrackInfo::kAudioTrack);
             if (data->mNumAudioTrack) {
+              
               RefPtr<MediaTrackDemuxer> d =
                   data->mDemuxer->GetTrackDemuxer(TrackInfo::kAudioTrack, 0);
+                  
               if (d) {
                 RefPtr<Wrapper> wrapper =
                     new DemuxerProxy::Wrapper(d, taskQueue);
@@ -826,12 +837,16 @@ RefPtr<MediaDataDemuxer::InitPromise> MediaFormatReader::DemuxerProxy::Init() {
                     wrapper.get());
               }
             }
+            //data是mData
             data->mNumVideoTrack =
                 data->mDemuxer->GetNumberTracks(TrackInfo::kVideoTrack);
             if (data->mNumVideoTrack) {
+              //这里是创建Wrapper的部分，Wrapper中的mInfo从这里获取
               RefPtr<MediaTrackDemuxer> d =
                   data->mDemuxer->GetTrackDemuxer(TrackInfo::kVideoTrack, 0);
               if (d) {
+                //在这里的mMimeType就已经是空的，往上追一下
+                //printf("\n%s\n",d->GetInfo()->mMimeType.get());
                 RefPtr<Wrapper> wrapper =
                     new DemuxerProxy::Wrapper(d, taskQueue);
                 wrapper->UpdateBuffered();
@@ -1196,6 +1211,8 @@ MediaFormatReader::AsyncReadMetadata() {
 }
 
 void MediaFormatReader::OnDemuxerInitDone(const MediaResult& aResult) {
+  //成功，换rust库之后可以走到这里
+  //printf("##########################################################################");
   AUTO_PROFILER_LABEL("MediaFormatReader::OnDemuxerInitDone", MEDIA_PLAYBACK);
   MOZ_ASSERT(OnTaskQueue());
   mDemuxerInitRequest.Complete();
@@ -1210,6 +1227,7 @@ void MediaFormatReader::OnDemuxerInitDone(const MediaResult& aResult) {
 
   UniquePtr<MetadataTags> tags(MakeUnique<MetadataTags>());
 
+  //printf("##########################################################################");
   RefPtr<PDMFactory> platform;
   if (!IsWaitingOnCDMResource()) {
     platform = new PDMFactory();
@@ -1218,21 +1236,42 @@ void MediaFormatReader::OnDemuxerInitDone(const MediaResult& aResult) {
   // To decode, we need valid video and a place to put it.
   bool videoActive = !!mDemuxer->GetNumberTracks(TrackInfo::kVideoTrack) &&
                      GetImageContainer();
-
+  // printf("############################################");
+  // printf("%d",videoActive);
   if (videoActive) {
     // We currently only handle the first video track.
     MutexAutoLock lock(mVideo.mMutex);
     mVideo.mTrackDemuxer = mDemuxer->GetTrackDemuxer(TrackInfo::kVideoTrack, 0);
+
     if (!mVideo.mTrackDemuxer) {
       mMetadataPromise.Reject(NS_ERROR_DOM_MEDIA_METADATA_ERR, __func__);
       return;
     }
-
+    //看看这个GetInfo()方法，为何没获取到mMimeType
     UniquePtr<TrackInfo> videoInfo = mVideo.mTrackDemuxer->GetInfo();
     videoActive = videoInfo && videoInfo->IsValid();
+    //当前在这里出问题，此处判断为unsupported
     if (videoActive) {
+      //265类型视频在这里的mMimeType为空
+     //printf("############################################");
+      //printf("\n %s \n",videoInfo->mMimeType.get());
+      //printf("\n%d\n",platform->SupportsMimeType(videoInfo->mMimeType) );
+
+      //此处有个问题，不清楚该如何输出platform->SupportsMimeType(videoInfo->mMimeType) 这个东西的值
+      //直接printf输出的话两个值不相等，但是if判断是true
+      //不确定如何输出这种枚举值
+      // if(platform->SupportsMimeType(videoInfo->mMimeType) ==
+      //                     media::DecodeSupport::Unsupported) 
+      // {
+      //   auto x = platform->SupportsMimeType(videoInfo->mMimeType);
+      //   //printf("\n%d\n",x);
+      //   printf("\n%d\n",media::DecodeSupport::Unsupported);
+      //   printf("##########################################################");
+       
+      // }
+      //printf("\n%s\n",videoInfo->mMimeType.get());
       if (platform && platform->SupportsMimeType(videoInfo->mMimeType) ==
-                          media::DecodeSupport::Unsupported) {
+                          media::DecodeSupport::Unsupported) {                 
         // We have no decoder for this track. Error.
         mMetadataPromise.Reject(NS_ERROR_DOM_MEDIA_METADATA_ERR, __func__);
         return;
@@ -1376,6 +1415,7 @@ bool MediaFormatReader::IsEncrypted() const {
 }
 
 void MediaFormatReader::OnDemuxerInitFailed(const MediaResult& aError) {
+  //更新rust库之后265这里不报错
   //printf("##########################################################################");
   mDemuxerInitRequest.Complete();
   mMetadataPromise.Reject(aError, __func__);

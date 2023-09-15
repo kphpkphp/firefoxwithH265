@@ -304,8 +304,10 @@ MediaResult MP4VideoInfo::Update(const Mp4parseTrackInfo* track,
                                  const Mp4parseTrackVideoInfo* video) {
   auto rv = VerifyAudioOrVideoInfoAndRecordTelemetry(video);
   NS_ENSURE_SUCCESS(rv, rv);
-
+  //看看这个是什么，能不能打印出来
   Mp4parseCodec codecType = video->sample_info[0].codec_type;
+  //可以打印，H265时此处的codecType是14
+  //printf("\n%d\n",codecType);
   for (uint32_t i = 0; i < video->sample_info_count; i++) {
     if (video->sample_info[i].protected_data.is_encrypted) {
       auto rv =
@@ -319,6 +321,8 @@ MediaResult MP4VideoInfo::Update(const Mp4parseTrackInfo* track,
   // the entire track. This code will need to be updated should this assumption
   // ever not hold. E.g. if we need to handle different codecs in a single
   // track, or if we have different numbers or channels in a single track.
+  //_ns看来是字面值的意思，后面加_ns，这样的字符串就是字面值字符串，这种构造方式应该是用于用户自定义字面值字符串
+  //MP4PARSE_CODEC_HEVC这些枚举值定义在mp4parse_ffi_generated.h里
   if (codecType == MP4PARSE_CODEC_AVC) {
     mMimeType = "video/avc"_ns;
   } else if (codecType == MP4PARSE_CODEC_VP9) {
@@ -327,6 +331,9 @@ MediaResult MP4VideoInfo::Update(const Mp4parseTrackInfo* track,
     mMimeType = "video/av1"_ns;
   } else if (codecType == MP4PARSE_CODEC_MP4V) {
     mMimeType = "video/mp4v-es"_ns;
+    //2023.9.15修改
+  } else if (codecType == MP4PARSE_CODEC_HEVC) {
+    mMimeType = "video/hevc"_ns;
   }
   mTrackId = track->track_id;
   if (track->duration > TimeUnit::MaxTicks()) {
@@ -335,6 +342,7 @@ MediaResult MP4VideoInfo::Update(const Mp4parseTrackInfo* track,
     mDuration =
         TimeUnit(AssertedCast<int64_t>(track->duration), track->time_scale);
   }
+  //这些大概不用改吧，这些信息似乎是全的
   mMediaTime = TimeUnit(track->media_time, track->time_scale);
   mDisplay.width = AssertedCast<int32_t>(video->display_width);
   mDisplay.height = AssertedCast<int32_t>(video->display_height);
@@ -346,7 +354,7 @@ MediaResult MP4VideoInfo::Update(const Mp4parseTrackInfo* track,
   mExtraData->AppendElements(extraData.data, extraData.length);
   return NS_OK;
 }
-
+//判断是否能播放
 bool MP4VideoInfo::IsValid() const {
   return (mDisplay.width > 0 && mDisplay.height > 0) ||
          (mImage.width > 0 && mImage.height > 0);
