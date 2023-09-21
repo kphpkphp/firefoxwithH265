@@ -38,6 +38,11 @@ class AndroidDecoderModule : public PlatformDecoderModule {
   media::DecodeSupportSet Supports(
       const SupportDecoderParams& aParams,
       DecoderDoctorDiagnostics* aDiagnostics) const override;
+    
+      virtual void  WhoIam() const
+  {
+    printf("\n I am AndroidDecoderModule \n");
+  }
 
  protected:
   bool SupportsColorDepth(

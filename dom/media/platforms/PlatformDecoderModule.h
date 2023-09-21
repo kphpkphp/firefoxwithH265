@@ -348,9 +348,19 @@ class PlatformDecoderModule {
     const TrackInfo& trackInfo = aParams.mConfig;
     const media::DecodeSupportSet support =
         SupportsMimeType(trackInfo.mMimeType, aDiagnostics);
+        //只有H265在这里打印出了信息，为什么？
+        //H265不应该走到这里，也许我对逻辑的理解有问题
+
+        //H265既能走到这里，又能走到PDMFacory那边
+        //会不会和demuxer的init有关？
+        //printf("\n PlatformDecoderModule::Supports %s\n",trackInfo.mMimeType.get());
+
+        //printf("\n %d \n",*(support.begin()));
 
     // Bail early if we don't support this format at all
     if (support == media::DecodeSupport::Unsupported) {
+      //printf("\n%s:this is unsupported ,myname is \n",trackInfo.mMimeType.get());
+      //WhoIam();
       return support;
     }
 
@@ -370,6 +380,14 @@ class PlatformDecoderModule {
 
   using CreateDecoderPromise = MozPromise<RefPtr<MediaDataDecoder>, MediaResult,
                                           /* IsExclusive = */ true>;
+  //用于输出自己的身份
+  //C++规范，在一个const对象上只能调用它的const方法
+  //改成纯虚的，看看到底哪个类没实现它
+  //看来是blankDecodermodule
+  virtual void  WhoIam() const
+  {
+    printf("\n I am PlatformDecoderModuleBase \n");
+  }
 
  protected:
   PlatformDecoderModule() = default;

@@ -48,6 +48,12 @@ class WMFDecoderModule : public PlatformDecoderModule {
                                   RefPtr<MFTDecoder>& aDecoder);
   static bool CanCreateMFTDecoder(const WMFStreamType& aType);
 
+      //用于输出自己的身份
+  virtual void  WhoIam() const override
+  {
+    printf("\nI am WMFDecoderModule\n");
+  } 
+
  private:
   WMFDecoderModule() = default;
   virtual ~WMFDecoderModule() = default;

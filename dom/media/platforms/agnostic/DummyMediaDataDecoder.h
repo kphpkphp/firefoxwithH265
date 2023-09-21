@@ -52,6 +52,12 @@ class DummyMediaDataDecoder final
 
   ConversionRequired NeedsConversion() const override;
 
+    //用于输出自己的身份
+  virtual void  WhoIam() const
+  {
+    printf("\nI am DummyMediaDataDecoder\n");
+  } 
+
  private:
   ~DummyMediaDataDecoder() = default;
 

@@ -31,6 +31,12 @@ class MFMediaEngineDecoderModule final : public PlatformDecoderModule {
       const SupportDecoderParams& aParams,
       DecoderDoctorDiagnostics* aDiagnostics) const override;
 
+          //用于输出自己的身份
+  virtual void  WhoIam() const override
+  {
+    printf("\nI am MFMediaEngineDecoderModule\n");
+  } 
+
  private:
   media::DecodeSupportSet SupportInternal(
       const SupportDecoderParams& aParams,

@@ -34,6 +34,10 @@ FFmpegDataDecoder<LIBAV_VER>::FFmpegDataDecoder(FFmpegLibWrapper* aLib,
       mLastInputDts(media::TimeUnit::FromNegativeInfinity()) {
   MOZ_ASSERT(aLib);
   MOZ_COUNT_CTOR(FFmpegDataDecoder);
+  
+  //查看此处AVCodecID的值
+  //printf("\nthere is FFmpegDataDecoder constructor the aCodecID is %d \n",aCodecID);
+  //HEVC走不到这里
 }
 
 FFmpegDataDecoder<LIBAV_VER>::~FFmpegDataDecoder() {

@@ -169,7 +169,7 @@ MP4Metadata::ResultAndTrackCount MP4Metadata::GetNumberTracks(
     }
 
     if (track_info.track_type == MP4PARSE_TRACK_TYPE_AUDIO) {
-      printf("\n there is a audio track ,i = %d\n",i);
+      //printf("\n there is a audio track ,i = %d\n",i);
       Mp4parseTrackAudioInfo audio;
       auto rv = mp4parse_get_track_audio_info(mParser.get(), i, &audio);
       if (rv != MP4PARSE_STATUS_OK) {

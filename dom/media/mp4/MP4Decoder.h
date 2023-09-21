@@ -39,6 +39,9 @@ class MP4Decoder {
   // Returns true if the MP4 backend is preffed on.
   static bool IsEnabled();
 
+  //新加的方法
+  static bool IsH265(const nsACString& aMimeType);
+
   static nsTArray<UniquePtr<TrackInfo>> GetTracksInfo(
       const MediaContainerType& aType);
 

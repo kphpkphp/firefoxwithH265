@@ -460,28 +460,70 @@ PDMFactory::CreateDecoderWithPDM(PlatformDecoderModule* aPDM,
 
 DecodeSupportSet PDMFactory::SupportsMimeType(
     const nsACString& aMimeType) const {
+      
+      //直接输出是不行的，aMimeType这个东西是个基类，不支持get()方法
+      //nsPrintfCString a = new nsPrintfCString (aMimeType);
+      //这样是可以成功输出aMimeType的，虽然不是很优雅
+      //printf("\n这里是PDMFactory.cpp里的输出：%s\n",NS_ConvertUTF16toUTF8(NS_ConvertUTF8toUTF16(aMimeType)).get());
+      //CreateTrackInfoWithMIMEType()这个方法可能是定义在VideoUtils.cpp里的
   UniquePtr<TrackInfo> trackInfo = CreateTrackInfoWithMIMEType(aMimeType);
+  //printf("\n%s\n",aMimeType);
   if (!trackInfo) {
+    //这里感觉不太对，好像H264和H265都有可能在这里输出，而且H264可能在这里输出两次
+    //如果H264播放过一次，那么就不会输出了
+    //H264只会在第一次播放视频时输出一次，之后就不会再输出了
+    //H265在第一次播放的时候也会多输出一次，看来和视频无关，第一次播放视频的时候就是会多输出一次，但原因没有查明
+    //难道有什么一开始的轨道什么的？
+    //printf("\n%s\n",aMimeType.get());
+    //printf("\n######################################################\n");
+    //这里的输出是在报错之后的，如果重复播放，H265也不会在这里输出
+    //不明白为什么
+    //感觉可能有个初始化过程
+    //可能和多线程有关
     return DecodeSupport::Unsupported;
   }
+  //HEVC可以生成trackInfo，因此HEVC会到Supports方法中
+
+  //printf("\n#####################  the first   ##############################\n");
+
   return Supports(SupportDecoderParams(*trackInfo), nullptr);
 }
+
 
 DecodeSupportSet PDMFactory::Supports(
     const SupportDecoderParams& aParams,
     DecoderDoctorDiagnostics* aDiagnostics) const {
+      //总是会走到这里
+      //算了先不管，专注HEVC
+      //printf("##########################################################");
+      //HEVC可以被送到这里
+      //printf("\n%s\n",aParams.mConfig.mMimeType.get());
   if (mEMEPDM) {
     return mEMEPDM->Supports(aParams, aDiagnostics);
   }
-
+  //此处的逻辑是：依次遍历PDM，如果支持，就返回这个PDM，如果没找到支持的，返回Unsupported
   RefPtr<PlatformDecoderModule> current =
       GetDecoderModule(aParams, aDiagnostics);
 
   if (!current) {
+    //H265并不会走到这里，在这里的时候mMimeType值是video/theora
+    //printf("\nthere is PDMFactory::Supports %s\n",aParams.mConfig.mMimeType.get());
+    //printf("sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss");
     return DecodeSupport::Unsupported;
   }
-
+ // printf("\n#####################  the second  ##############################\n");
   // We have a PDM - check for + return SW/HW support info
+
+  //printf("the PDMFactory::Supports ");
+  //printf("\nthere is PDMFactory::Supports, the  codec is %s , the module is \n",aParams.mConfig.mMimeType.get());
+      //让Module输出自己的身份
+      //hevc会走到这里，输出的对应模型是GMPDecoderModule
+      //尝试改成FFmpegDecoderModule，当前来看Ubuntu上H264解码用的是ffmpeg，
+  //GMP这个模型是继承来的Supports方法
+  //current->WhoIam();
+  //这里返回unsupported，之后返给SupportsMimeType，SupportsMimeType返给MediaFormatReader::OnDemuxerInitDone()，判断不支持
+  //GMP这个先会进去，之后再判断不支持
+  //我的ubuntu没有安装FFmpeg，当前怀疑这个FFmpeg是firefox自带的，它会自己编译一个库放起来，只给自己用
   return current->Supports(aParams, aDiagnostics);
 }
 
@@ -777,12 +819,27 @@ already_AddRefed<PlatformDecoderModule> PDMFactory::GetDecoderModule(
     // will not even try to use them. So we record failures now.
     aDiagnostics->SetFailureFlags(mFailureFlags);
   }
+  //HEVC可以进到这里来
+  //printf("\n there is GetDecoderModule,the codec is %s \n ",aParams.mConfig.mMimeType.get());
 
   RefPtr<PlatformDecoderModule> pdm;
+  //这个pdm判断有问题吧？
+  //H265时，会返回基类的一个实例
+  //现在不确定是哪个实例，不是FFmpeg
   for (const auto& current : mCurrentPDMs) {
+    //让Module输出自己的身份
+    //current->WhoIam();
+    //奇怪，HEVC的时候，这里输出的模型总是PlatformDecoderModuleBase，不知道哪个类没有重写继承
+    //无法确定，这里一直是输出PlatformDecoderModuleBase
+    //不管了，继续向下
+    //开始修改
     if (current->Supports(aParams, aDiagnostics) !=
         media::DecodeSupport::Unsupported) {
+          //printf("\n there is GetDecoderModule,the codec is %s \n ",aParams.mConfig.mMimeType.get());
+          //current->WhoIam();
       pdm = current;
+
+      //pdm->WhoIam();
       break;
     }
   }

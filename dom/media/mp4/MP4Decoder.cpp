@@ -204,6 +204,12 @@ bool MP4Decoder::IsH264(const nsACString& aMimeType) {
          aMimeType.EqualsLiteral("video/avc");
 }
 
+//直接抄H264的写法
+/*static*/
+bool MP4Decoder::IsH265(const nsACString& aMimeType) {
+  return aMimeType.EqualsLiteral("video/hevc") ;
+}
+
 /* static */
 bool MP4Decoder::IsAAC(const nsACString& aMimeType) {
   return aMimeType.EqualsLiteral("audio/mp4a-latm");

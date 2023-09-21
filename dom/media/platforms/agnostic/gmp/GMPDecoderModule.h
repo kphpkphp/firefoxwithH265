@@ -48,6 +48,12 @@ class GMPDecoderModule : public PlatformDecoderModule {
       const nsACString& aMimeType, const nsACString& aApi,
       const Maybe<nsCString>& aKeySystem);
 
+      //用于输出自己的身份
+  virtual void  WhoIam() const override
+  {
+    printf("\nI am GMPDecoderModule\n");
+  } 
+
  private:
   GMPDecoderModule() = default;
   virtual ~GMPDecoderModule() = default;

@@ -36,6 +36,11 @@ class EMEDecoderModule : public PlatformDecoderModule {
     MOZ_CRASH("Not used");
   }
 
+  virtual void  WhoIam() const override
+  {
+    printf("\n I am EMEDecoderModule \n");
+  }
+
   media::DecodeSupportSet SupportsMimeType(
       const nsACString& aMimeType,
       DecoderDoctorDiagnostics* aDiagnostics) const override;

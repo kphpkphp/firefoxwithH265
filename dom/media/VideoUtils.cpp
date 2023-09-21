@@ -1136,13 +1136,23 @@ bool IsAV1CodecString(const nsAString& aCodec) {
 UniquePtr<TrackInfo> CreateTrackInfoWithMIMEType(
     const nsACString& aCodecMIMEType) {
   UniquePtr<TrackInfo> trackInfo;
+  //printf("\ntest\n");
+  //还是那个奇怪的问题，这里执行的次数非常多，而且输出结果不光是AVC和HEVC
+  //现在没法做结论，继续测试
+  //printf("\n there is CreateTrackInfoWithMIMEType %s \n",NS_ConvertUTF16toUTF8(NS_ConvertUTF8toUTF16(aCodecMIMEType)).get());
+  //StartsWith()方法就是前几个字符串的比较，
   if (StartsWith(aCodecMIMEType, "audio/")) {
     trackInfo.reset(new AudioInfo());
     trackInfo->mMimeType = aCodecMIMEType;
   } else if (StartsWith(aCodecMIMEType, "video/")) {
+    //OK,HEVC能进到这个地方来,毕竟格式正确
+    //printf("\n there is CreateTrackInfoWithMIMEType StartsWith is video,and the aCodecMIMEType is  %s \n",NS_ConvertUTF16toUTF8(NS_ConvertUTF8toUTF16(aCodecMIMEType)).get());
     trackInfo.reset(new VideoInfo());
     trackInfo->mMimeType = aCodecMIMEType;
   }
+  //printf("\n there  is Create TrackInfoWithMIMEType %s\n",trackInfo->mMimeType.get());
+  //嗯，HEVC可以执行到这里，现在还是搞不清楚那些其他MIMEType是哪里来的
+  //不过先不管那些，现在只专注HEVC的处理逻辑
   return trackInfo;
 }
 

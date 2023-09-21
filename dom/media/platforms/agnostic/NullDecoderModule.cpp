@@ -35,6 +35,12 @@ class NullDecoderModule : public PlatformDecoderModule {
     return decoder.forget();
   }
 
+    //用于输出自己的身份
+  virtual void  WhoIam() const override
+  {
+    printf("\nI am NullDecoderModule\n");
+  } 
+
   // Decode thread.
   already_AddRefed<MediaDataDecoder> CreateAudioDecoder(
       const CreateDecoderParams& aParams) override {

@@ -61,6 +61,9 @@ media::DecodeSupportSet GMPDecoderModule::SupportsMimeType(
     const nsACString& aMimeType, const nsACString& aApi,
     const Maybe<nsCString>& aKeySystem) {
   AutoTArray<nsCString, 2> tags;
+  //HEVC确实会走到这里
+  //printf("\n there is GMPDecoderModule::SupportsMimeType ,the codec is %s\n",NS_ConvertUTF16toUTF8(NS_ConvertUTF8toUTF16(aMimeType)).get());
+
   if (MP4Decoder::IsH264(aMimeType)) {
     tags.AppendElement("h264"_ns);
   } else if (VPXDecoder::IsVP9(aMimeType)) {
@@ -70,7 +73,9 @@ media::DecodeSupportSet GMPDecoderModule::SupportsMimeType(
   } else {
     return media::DecodeSupport::Unsupported;
   }
-
+  //HEVC确实不能走到这里
+  //printf("\nthere is GMPDecoderModule::SupportsMimeType the codec is %s and we pass the Decodertest \n",NS_ConvertUTF16toUTF8(NS_ConvertUTF8toUTF16(aMimeType)).get());
+  //返回的应该还是Unsupported才对
   // Optional tag for EME GMP plugins.
   if (aKeySystem) {
     tags.AppendElement(*aKeySystem);

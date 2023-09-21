@@ -22,6 +22,12 @@ class AgnosticDecoderModule : public PlatformDecoderModule {
       const SupportDecoderParams& aParams,
       DecoderDoctorDiagnostics* aDiagnostics) const override;
 
+  //用于输出自己的身份
+  virtual void  WhoIam() const override
+  {
+    printf("\nI am AgnosticDecoderModule\n");
+  } 
+
  protected:
   AgnosticDecoderModule() = default;
   virtual ~AgnosticDecoderModule() = default;

@@ -1269,7 +1269,8 @@ void MediaFormatReader::OnDemuxerInitDone(const MediaResult& aResult) {
       //   printf("##########################################################");
        
       // }
-      //printf("\n%s\n",videoInfo->mMimeType.get());
+      //printf("\n 此处为MediaFormatReader.cpp 中的输出： %s\n",videoInfo->mMimeType.get());
+      //需要修改
       if (platform && platform->SupportsMimeType(videoInfo->mMimeType) ==
                           media::DecodeSupport::Unsupported) {                 
         // We have no decoder for this track. Error.

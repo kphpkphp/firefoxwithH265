@@ -26,6 +26,12 @@ class OmxDecoderModule : public PlatformDecoderModule {
   media::DecodeSupportSet SupportsMimeType(
       const nsACString& aMimeType,
       DecoderDoctorDiagnostics* aDiagnostics) const override;
+
+          //用于输出自己的身份
+  virtual void  WhoIam() const override
+  {
+    printf("\nI am OmxDecoderModule\n");
+  } 
 };
 
 }  // namespace mozilla

@@ -268,7 +268,7 @@ bool FFmpegVideoDecoder<LIBAV_VER>::CreateVAAPIDeviceContext() {
   releaseVAAPIcontext.release();
   return true;
 }
-
+//这个方法，可能是做些前期准备工作，定义decoder的运行环境之类
 MediaResult FFmpegVideoDecoder<LIBAV_VER>::InitVAAPIDecoder() {
   FFMPEG_LOG("Initialising VA-API FFmpeg decoder");
 
@@ -541,6 +541,11 @@ FFmpegVideoDecoder<LIBAV_VER>::FFmpegVideoDecoder(
       mTrackingId(std::move(aTrackingId)) {
   FFMPEG_LOG("FFmpegVideoDecoder::FFmpegVideoDecoder MIME %s Codec ID %d",
              aConfig.mMimeType.get(), mCodecID);
+  //测试一下H265会不会走到这里
+  //H265似乎走不到这里，这样没输出
+  //printf("#############################################");
+  //printf("\nthere is FFmpegDataDecoder constructor the aCodecID is %d \n",GetCodecId(aConfig.mMimeType));
+  
   // Use a new MediaByteBuffer as the object will be modified during
   // initialization.
   mExtraData = new MediaByteBuffer;
@@ -1571,8 +1576,32 @@ FFmpegVideoDecoder<LIBAV_VER>::ProcessFlush() {
 
 AVCodecID FFmpegVideoDecoder<LIBAV_VER>::GetCodecId(
     const nsACString& aMimeType) {
+
+      //嗯，LIBAVCODEC_VERSION_MAJOR的值一会是58一会是60
+      //printf("\n LIBAVCODEC_VERSION_MAJOR： %d\n",LIBAVCODEC_VERSION_MAJOR);
+  //需要设计MP4Decoder::IsH265()方法
   if (MP4Decoder::IsH264(aMimeType)) {
     return AV_CODEC_ID_H264;
+  }
+
+  //抄上面的写法
+  if (MP4Decoder::IsH265(aMimeType))
+  {
+    //发现问题，这里写H265/HEVC会报未定义
+    //明明枚举里有
+    //看看此时的版本是什么
+    //如果版本真的会变，那要找到控制版本的方法
+    //这里会输出两次，一次是60，一次是58
+    //难道60和58是两个不同的模型？
+    //也可能是遍历版本，一个一个试？
+    //大概当前平台能用什么版本是在编译阶段确定的
+   // printf("\n LIBAVCODEC_VERSION_MAJOR： %d\n",LIBAVCODEC_VERSION_MAJOR);
+   // printf("\n AV_CODEC_ID_H265 %d\n",AV_CODEC_ID_H265);
+    //LIBAVCODEC_VERSION_MAJOR的值是60和58
+    //printf("\n LIBAVCODEC_VERSION_MAJOR %d\n",LIBAVCODEC_VERSION_MAJOR);
+    //问题找到了，确实是在编译阶段进行了屏蔽，但具体做法不明
+    //将低版本的库支持注释掉，即可激活H265宏
+    return AV_CODEC_ID_HEVC;
   }
 
   if (aMimeType.EqualsLiteral("video/x-vnd.on2.vp6")) {
@@ -1591,6 +1620,7 @@ AVCodecID FFmpegVideoDecoder<LIBAV_VER>::GetCodecId(
   }
 #endif
 
+//也许可以模仿这个写法，把265设置成可选的
 #if defined(FFMPEG_AV1_DECODE)
   if (AOMDecoder::IsAV1(aMimeType)) {
     return AV_CODEC_ID_AV1;
