@@ -371,6 +371,9 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::InitV4L2Decoder() {
   }
 
   // Select the appropriate v4l2 codec
+    // Select the appropriate v4l2 codec
+  //v412是Linux下的一种编解码器，管理UVC设备用的
+  //UVC设备是USB摄像头、视频摄像头等，UVC是控制这些设备的一种协议
   AVCodec* codec = nullptr;
   if (mCodecID == AV_CODEC_ID_H264) {
     codec = mLib->avcodec_find_decoder_by_name("h264_v4l2m2m");
@@ -469,7 +472,7 @@ void FFmpegVideoDecoder<LIBAV_VER>::PtsCorrectionContext::Reset() {
   mLastPts = INT64_MIN;
   mLastDts = INT64_MIN;
 }
-
+//这里会做一些处理，看看是怎么做的
 #ifdef MOZ_WAYLAND_USE_HWDECODE
 void FFmpegVideoDecoder<LIBAV_VER>::InitHWDecodingPrefs() {
   if (!mEnableHardwareDecoding) {
@@ -480,6 +483,10 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitHWDecodingPrefs() {
   bool supported = false;
   switch (mCodecID) {
     case AV_CODEC_ID_H264:
+        //定义在/gfx/config/gfxVars.h
+    //似乎是GFX_VARS_LIST这个宏的一部分
+    //看不明白，没见过这种语法
+    //GPT说这个宏下面都是元组，每个元组描述一个图形变量，包括变量的C++名称、数据类型和默认值
       supported = gfx::gfxVars::UseH264HwDecode();
       break;
     case AV_CODEC_ID_VP8:
@@ -522,6 +529,7 @@ FFmpegVideoDecoder<LIBAV_VER>::FFmpegVideoDecoder(
     bool aLowLatency, bool aDisableHardwareDecoding,
     Maybe<TrackingId> aTrackingId)
     : FFmpegDataDecoder(aLib, GetCodecId(aConfig.mMimeType)),
+    //注意，这里有个是否开启硬件解码的宏
 #ifdef MOZ_WAYLAND_USE_HWDECODE
       mVAAPIDeviceContext(nullptr),
       mUsingV4L2(false),
@@ -545,7 +553,31 @@ FFmpegVideoDecoder<LIBAV_VER>::FFmpegVideoDecoder(
   //H265似乎走不到这里，这样没输出
   //printf("#############################################");
   //printf("\nthere is FFmpegDataDecoder constructor the aCodecID is %d \n",GetCodecId(aConfig.mMimeType));
-  
+
+
+  // if(aDisableHardwareDecoding)
+  // {
+  //   printf("\nDisableHardwareDecoding\n");
+  // }
+  // else
+  // {
+  //   printf("\nHardwareDecoding\n");
+  // }
+
+  //先检查一下这里是否开启了硬件解码
+  //这里是true
+  //printf("\n the aDisableHardwareDecoding is %d \n",aDisableHardwareDecoding);
+
+  //检查一下宏有没有定义过
+  //定义过了
+
+  // #ifdef MOZ_WAYLAND_USE_HWDECODE
+  //     printf("the HWDECODE is enable");
+  // #endif
+
+  //那么，硬件解码的问题看来就是在下面的流程里了，有某种原因导致了解码时没有调用VAAPI
+
+    
   // Use a new MediaByteBuffer as the object will be modified during
   // initialization.
   mExtraData = new MediaByteBuffer;
@@ -960,7 +992,7 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitHWCodecContext(bool aUsingV4L2) {
   } else {
     mCodecContext->get_format = ChooseVAAPIPixelFormat;
   }
-
+  //硬件加速需要额外的信息吗？
   if (mCodecID == AV_CODEC_ID_H264) {
     mCodecContext->extra_hw_frames =
         H264::ComputeMaxRefFrames(mInfo.mExtraData);
@@ -1036,6 +1068,7 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::DoDecode(
                                 : MediaInfoFlag::NonKeyFrame);
     flag |= (IsHardwareAccelerated() ? MediaInfoFlag::HardwareDecoding
                                      : MediaInfoFlag::SoftwareDecoding);
+    //这个地方有点奇怪，可能需要注意
     switch (mCodecID) {
       case AV_CODEC_ID_H264:
         flag |= MediaInfoFlag::VIDEO_H264;
