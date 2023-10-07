@@ -2940,6 +2940,7 @@ void gfxPlatform::InitHardwareVideoConfig() {
 
   // H264_HW_DECODE/AV1_HW_DECODE is used on Linux only right now.
 #ifdef MOZ_WIDGET_GTK
+//看看这里是怎么做的
   FeatureState& featureH264 = gfxConfig::GetFeature(Feature::H264_HW_DECODE);
   featureH264.EnableByDefault();
 
@@ -2957,6 +2958,26 @@ void gfxPlatform::InitHardwareVideoConfig() {
     featureAV1.Disable(FeatureStatus::Blocklisted, message.get(), failureId);
   }
   gfxVars::SetUseAV1HwDecode(featureAV1.IsEnabled());
+
+  //HEVC的逻辑，先直接build看看能不能行得通
+  //这个东西可能需要再进一步细化，当前没有实现HEVC判断能否硬解的逻辑
+  FeatureState& featureH265 = gfxConfig::GetFeature(Feature::H265_HW_DECODE);
+  featureH265.EnableByDefault();
+  //nsIGfxInfo::FEATURE_H265_HW_DECODE，这个八成要自己写吧？
+  //需要自己写
+  //这个在idl文件里直接加上nsIGfxInfo::FEATURE_H265_HW_DECODE就能过编译
+  if (!IsGfxInfoStatusOkay(nsIGfxInfo::FEATURE_H265_HW_DECODE, &message,
+                           failureId)) {
+    featureH265.Disable(FeatureStatus::Blocklisted, message.get(), failureId);
+  }
+  //这里需要改
+  //这个东西似乎定义在/gfx/config/gfxVars.h里，但是没有直接的定义，怎么实现的还不清楚，可能是用宏和枚举拼出来的
+  //
+  gfxVars::SetUseH265HwDecode(featureH265.IsEnabled());
+  //试试能不能输出这个值
+  //能输出，值为1，成功设置为启用
+  //printf("\n UseH265HwDecode %d \n",gfxVars::UseH265HwDecode());
+
 #endif
 }
 
@@ -3948,7 +3969,9 @@ void gfxPlatform::InitOpenGLConfig() {
     openGLFeature.Disable(FeatureStatus::Blocklisted, message.get(), failureId);
   }
 }
-
+//先直接编译一下试试
+//过了
+//底层逻辑似乎就是找有没有这个Feature，但是没仔细看
 bool gfxPlatform::IsGfxInfoStatusOkay(int32_t aFeature, nsCString* aOutMessage,
                                       nsCString& aFailureId) {
   nsCOMPtr<nsIGfxInfo> gfxInfo = components::GfxInfo::Service();

@@ -190,6 +190,9 @@ interface nsIGfxInfo : nsISupports
   /* the maximum feature value. */
   const long FEATURE_MAX_VALUE = FEATURE_VIDEO_SOFTWARE_OVERLAY;
 
+  /*添加H265类型*/
+  const long FEATURE_H265_HW_DECODE = 47;
+
   /*
    * A set of return values from GetFeatureStatus
    */

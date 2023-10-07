@@ -15,6 +15,8 @@ namespace gfx {
 
 static UniquePtr<gfxConfig> sConfig;
 
+//这个方法就是调GetState()方法而已
+//GetState()方法在gfxConfig.h里定义,private,有一个const版本和一个正常版本
 /* static */ FeatureState& gfxConfig::GetFeature(Feature aFeature) {
   return sConfig->GetState(aFeature);
 }

@@ -13,6 +13,8 @@
 #include <dlfcn.h>
 #include <pthread.h>
 #include <stdlib.h>
+//为了输出加上的stdio
+//#include <stdio.h>
 
 #define GET_FUNC(func, lib) (func##Fn = dlsym(lib, #func))
 
@@ -88,6 +90,7 @@ static VAStatus (*vaInitializeFn)(VADisplay dpy, int* major_version, /* out */
                                   int* minor_version /* out */);
 static VAStatus (*vaSetDriverNameFn)(VADisplay dpy, char* driver_name);
 static int (*vaMaxNumEntrypointsFn)(VADisplay dpy);
+//这是一个函数指针，大概是用于指向某个特定的方法吧
 static VAStatus (*vaQueryConfigEntrypointsFn)(VADisplay dpy, VAProfile profile,
                                               VAEntrypoint* entrypoint_list,
                                               int* num_entrypoints);
@@ -431,6 +434,10 @@ VAStatus vaQueryConfigEntrypoints(VADisplay dpy, VAProfile profile,
                                   VAEntrypoint* entrypoint_list,
                                   int* num_entrypoints) {
   if (LoadVALibrary()) {
+    //不知道这个指针是何时被赋值的
+    //没看到赋值语句，怀疑这里是直接失败的
+    //printf("\n vaQueryConfigEntrypoints FAILED!!!! \n");
+    //不清楚这里是如何给这个函数指针赋值的
     return vaQueryConfigEntrypointsFn(dpy, profile, entrypoint_list,
                                       num_entrypoints);
   }

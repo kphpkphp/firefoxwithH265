@@ -286,11 +286,15 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::InitVAAPIDecoder() {
                  mLib->avcodec_get_name(mCodecID));
     }
   }
+  //从这里开始就失败了
+ //printf("\n Pass IsFormatAccelerated \n");
 
   if (!mLib->IsVAAPIAvailable()) {
     FFMPEG_LOG("  libva library or symbols are missing.");
     return NS_ERROR_NOT_AVAILABLE;
   }
+
+ //printf("\n pass IsVAAPIAvailable \n");
 
   AVCodec* codec = FindVAAPICodec();
   if (!codec) {
@@ -299,6 +303,8 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::InitVAAPIDecoder() {
   }
   FFMPEG_LOG("  codec %s : %s", codec->name, codec->long_name);
 
+ //printf("\n pass FindVAAPICodec \n");
+
   if (!(mCodecContext = mLib->avcodec_alloc_context3(codec))) {
     FFMPEG_LOG("  couldn't init VA-API ffmpeg context");
     return NS_ERROR_OUT_OF_MEMORY;
@@ -306,6 +312,8 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::InitVAAPIDecoder() {
   mCodecContext->opaque = this;
 
   InitHWCodecContext(false);
+
+ //printf("\n pass avcodec_alloc_context3 \n");
 
   auto releaseVAAPIdecoder = MakeScopeExit([&] {
     if (mVAAPIDeviceContext) {
@@ -322,12 +330,16 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::InitVAAPIDecoder() {
     return NS_ERROR_DOM_MEDIA_FATAL_ERR;
   }
 
+   //printf("\n pass CreateVAAPIDeviceContext \n");
+
   MediaResult ret = AllocateExtraData();
   if (NS_FAILED(ret)) {
     mLib->av_buffer_unref(&mVAAPIDeviceContext);
     mLib->av_freep(&mCodecContext);
     return ret;
   }
+
+   //printf("\n pass AllocateExtraData \n");
 
   if (mLib->avcodec_open2(mCodecContext, codec, nullptr) < 0) {
     mLib->av_buffer_unref(&mVAAPIDeviceContext);
@@ -336,6 +348,11 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::InitVAAPIDecoder() {
     return NS_ERROR_DOM_MEDIA_FATAL_ERR;
   }
 
+   //printf("\n pass avcodec_open2 \n");
+
+  //emm可能在这里设置的？
+  //看来刚启动是没有这个列表的
+  //试了一下，开启浏览器之后第一次播放HEVC会走到这里，但无法完成获取加速格式这一步
   if (mAcceleratedFormats.IsEmpty()) {
     mAcceleratedFormats = GetAcceleratedFormats();
     if (!IsFormatAccelerated(mCodecID)) {
@@ -344,6 +361,8 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::InitVAAPIDecoder() {
       return NS_ERROR_NOT_AVAILABLE;
     }
   }
+
+   //printf("\n pass GetAcceleratedFormats \n");
 
   if (MOZ_LOG_TEST(sPDMLog, LogLevel::Debug)) {
     mLib->av_log_set_level(AV_LOG_DEBUG);
@@ -371,6 +390,8 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::InitV4L2Decoder() {
   }
 
   // Select the appropriate v4l2 codec
+  //v412是Linux下的一种编解码器，管理UVC设备用的
+  //UVC设备是USB摄像头、视频摄像头等，UVC是控制这些设备的一种协议
   AVCodec* codec = nullptr;
   if (mCodecID == AV_CODEC_ID_H264) {
     codec = mLib->avcodec_find_decoder_by_name("h264_v4l2m2m");
@@ -470,6 +491,7 @@ void FFmpegVideoDecoder<LIBAV_VER>::PtsCorrectionContext::Reset() {
   mLastDts = INT64_MIN;
 }
 
+//这里会做一些处理，看看是怎么做的
 #ifdef MOZ_WAYLAND_USE_HWDECODE
 void FFmpegVideoDecoder<LIBAV_VER>::InitHWDecodingPrefs() {
   if (!mEnableHardwareDecoding) {
@@ -478,9 +500,17 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitHWDecodingPrefs() {
   }
 
   bool supported = false;
+
+  //printf("\nthe mCodecID is %d\n",mCodecID);
+
   switch (mCodecID) {
     case AV_CODEC_ID_H264:
+    //定义在/gfx/config/gfxVars.h
+    //似乎是GFX_VARS_LIST这个宏的一部分
+    //看不明白，没见过这种语法
+    //GPT说这个宏下面都是元组，每个元组描述一个图形变量，包括变量的C++名称、数据类型和默认值
       supported = gfx::gfxVars::UseH264HwDecode();
+      //printf("\n UseH264HwDecode is %d \n",supported);
       break;
     case AV_CODEC_ID_VP8:
       supported = gfx::gfxVars::UseVP8HwDecode();
@@ -491,6 +521,10 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitHWDecodingPrefs() {
     case AV_CODEC_ID_AV1:
       supported = gfx::gfxVars::UseAV1HwDecode();
       break;
+    //HEVC的条件分支
+    case AV_CODEC_ID_HEVC:
+      supported = gfx::gfxVars::UseH265HwDecode();
+      break;
     default:
       break;
   }
@@ -499,7 +533,8 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitHWDecodingPrefs() {
     FFMPEG_LOG("Codec %s is not accelerated", mLib->avcodec_get_name(mCodecID));
     return;
   }
-
+  //可能这里还需要改？
+  //不用改，经测试，这个方法可以走完，能成功将mEnableHardwareDecoding设置为true
   bool isHardwareWebRenderUsed = mImageAllocator &&
                                  (mImageAllocator->GetCompositorBackendType() ==
                                   layers::LayersBackend::LAYERS_WR) &&
@@ -507,21 +542,29 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitHWDecodingPrefs() {
   if (!isHardwareWebRenderUsed) {
     mEnableHardwareDecoding = false;
     FFMPEG_LOG("Hardware WebRender is off, VAAPI is disabled");
+    //printf("\n Hardware WebRender is off, VAAPI is disabled \n");
     return;
   }
+  //printf("\n Hardware WebRender is on \n");
   if (!XRE_IsRDDProcess()) {
     mEnableHardwareDecoding = false;
     FFMPEG_LOG("VA-API works in RDD process only");
+
   }
+  //printf("\n the mEnableHardwareDecoding is %d \n",mEnableHardwareDecoding);
+  //printf("\n is over the HW is on \n");
 }
 #endif
-
+//这里就是Videoecoder的构造函数
+//在这里已经将aDisableHardwareDecoding设置为false，为何没有启动HEVC的硬件解码呢？
+//大概解码过程的实现有关吧？
 FFmpegVideoDecoder<LIBAV_VER>::FFmpegVideoDecoder(
     FFmpegLibWrapper* aLib, const VideoInfo& aConfig,
     KnowsCompositor* aAllocator, ImageContainer* aImageContainer,
     bool aLowLatency, bool aDisableHardwareDecoding,
     Maybe<TrackingId> aTrackingId)
     : FFmpegDataDecoder(aLib, GetCodecId(aConfig.mMimeType)),
+    //注意，这里有个是否开启硬件解码的宏
 #ifdef MOZ_WAYLAND_USE_HWDECODE
       mVAAPIDeviceContext(nullptr),
       mUsingV4L2(false),
@@ -548,9 +591,23 @@ FFmpegVideoDecoder<LIBAV_VER>::FFmpegVideoDecoder(
   
   // Use a new MediaByteBuffer as the object will be modified during
   // initialization.
+  //先检查一下这里是否开启了硬件解码
+  //这里是true
+  //printf("\n the aDisableHardwareDecoding is %d \n",aDisableHardwareDecoding);
+
+  //检查一下宏有没有定义过
+  //定义过了
+
+  // #ifdef MOZ_WAYLAND_USE_HWDECODE
+  //     printf("the HWDECODE is enable");
+  // #endif
+
+  //那么，硬件解码的问题看来就是在下面的流程里了，有某种原因导致了解码时没有调用VAAPI
+
   mExtraData = new MediaByteBuffer;
   mExtraData->AppendElements(*aConfig.mExtraData);
 #ifdef MOZ_WAYLAND_USE_HWDECODE
+//嗯，这里
   InitHWDecodingPrefs();
 #endif
 }
@@ -562,6 +619,7 @@ FFmpegVideoDecoder<LIBAV_VER>::~FFmpegVideoDecoder() {
 #endif
 }
 
+//为什么Init的时候成功，Init之后再播放就不行了？
 RefPtr<MediaDataDecoder::InitPromise> FFmpegVideoDecoder<LIBAV_VER>::Init() {
   MediaResult rv;
 
@@ -570,10 +628,13 @@ RefPtr<MediaDataDecoder::InitPromise> FFmpegVideoDecoder<LIBAV_VER>::Init() {
 #  ifdef MOZ_ENABLE_VAAPI
     rv = InitVAAPIDecoder();
     if (NS_SUCCEEDED(rv)) {
+      //确实，当前的问题就是InitVAAPIDecoder失败
+      //printf("\n InitVAAPIDecoder success!!! \n");
       return InitPromise::CreateAndResolve(TrackInfo::kVideoTrack, __func__);
     }
 #  endif  // MOZ_ENABLE_VAAPI
 
+//V4L2是摄像头等设备的协议
 #  ifdef MOZ_ENABLE_V4L2
     // VAAPI didn't work or is disabled, so try V4L2 with DRM
     rv = InitV4L2Decoder();
@@ -962,6 +1023,7 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitHWCodecContext(bool aUsingV4L2) {
   }
 
   if (mCodecID == AV_CODEC_ID_H264) {
+    //硬件加速需要额外的信息吗？
     mCodecContext->extra_hw_frames =
         H264::ComputeMaxRefFrames(mInfo.mExtraData);
   } else {
@@ -1036,6 +1098,7 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::DoDecode(
                                 : MediaInfoFlag::NonKeyFrame);
     flag |= (IsHardwareAccelerated() ? MediaInfoFlag::HardwareDecoding
                                      : MediaInfoFlag::SoftwareDecoding);
+    //这个地方有点奇怪，可能需要注意
     switch (mCodecID) {
       case AV_CODEC_ID_H264:
         flag |= MediaInfoFlag::VIDEO_H264;
@@ -1115,6 +1178,8 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::DoDecode(
     decodeStart = TimeStamp::Now();
 
     MediaResult rv;
+    //这里，可能是后续播放过程调用的地方
+    printf("\n now coming the DoDecode \n");
 #  ifdef MOZ_WAYLAND_USE_HWDECODE
     if (IsHardwareAccelerated()) {
       if (mMissedDecodeInAverangeTime > HW_DECODE_LATE_FRAMES) {
@@ -1653,6 +1718,7 @@ bool FFmpegVideoDecoder<LIBAV_VER>::IsHardwareAccelerated(
 #ifdef MOZ_WAYLAND_USE_HWDECODE
 bool FFmpegVideoDecoder<LIBAV_VER>::IsFormatAccelerated(
     AVCodecID aCodecID) const {
+  //看来需要在mAcceleratedFormats列表里增加
   for (const auto& format : mAcceleratedFormats) {
     if (format == aCodecID) {
       return true;
@@ -1662,6 +1728,10 @@ bool FFmpegVideoDecoder<LIBAV_VER>::IsFormatAccelerated(
 }
 
 // See ffmpeg / vaapi_decode.c how CodecID is mapped to VAProfile.
+//vaapi_decode.c在/media/ffvpx/libavcodec/下面
+//这里要加上HEVC的类型，注意一下HEVC都有些什么型号
+//HEVC的型号我记得在什么文件里有定义
+//
 static const struct {
   enum AVCodecID codec_id;
   VAProfile va_profile;
@@ -1677,9 +1747,15 @@ static const struct {
     MAP(VP9, VP9Profile2, "VP9Profile2"),
     MAP(AV1, AV1Profile0, "AV1Profile0"),
     MAP(AV1, AV1Profile1, "AV1Profile1"),
+    //HEVC相关
+    //VAProfile在/media/mozva/va/va.h里定义
+    //先写这几个吧，其他的东西不一定支持
+    MAP(H265, HEVCMain, "HEVCMain"),
+    MAP(H265, HEVCMain10, "HEVCMain10"),
+    MAP(H265, HEVCMain12, "HEVCMain12"),
 #  undef MAP
 };
-
+//传入参数，遍历上面定义的MAP，看看有没有这个支持的参数
 static AVCodecID VAProfileToCodecID(VAProfile aVAProfile) {
   for (const auto& profile : vaapi_profile_map) {
     if (profile.va_profile == aVAProfile) {
@@ -1724,6 +1800,8 @@ void FFmpegVideoDecoder<LIBAV_VER>::AddAcceleratedFormats(
 #  endif
     if (fc->valid_sw_formats[n] == AV_PIX_FMT_NV12 ||
         fc->valid_sw_formats[n] == AV_PIX_FMT_YUV420P) {
+         //这里很奇怪，应该能添加到HEVC
+         //printf("\nfoundSupportedFormat is true!!! the codecID is %d\n",aCodecID);
       foundSupportedFormat = true;
 #  ifndef MOZ_LOGGING
       break;
@@ -1742,6 +1820,7 @@ void FFmpegVideoDecoder<LIBAV_VER>::AddAcceleratedFormats(
   }
 }
 
+//获取可以进行硬件加速的列表
 nsTArray<AVCodecID> FFmpegVideoDecoder<LIBAV_VER>::GetAcceleratedFormats() {
   FFMPEG_LOG("FFmpegVideoDecoder::GetAcceleratedFormats()");
 
@@ -1786,13 +1865,35 @@ nsTArray<AVCodecID> FFmpegVideoDecoder<LIBAV_VER>::GetAcceleratedFormats() {
   numProfiles = std::min(numProfiles, maxProfiles);
 
   entryPoints = new VAEntrypoint[maxEntryPoints];
+  //
+  //嗯，这个for循环应当是在读取那些受支持的类型了
+  //看看能不能走到这里
+  //HEVC可以走到这里
+  //printf("\n there is GetAcceleratedFormats and now maybe getting the supported formats \n");
   for (int p = 0; p < numProfiles; p++) {
+    //VAProfile定义在/media/mozva/va/va.h，里面包括HEVC
+    //numProfiles通过vaQueryConfigProfiles()方法获取，这个方法定义在/media/mozva/mozva.c
     VAProfile profile = profiles[p];
 
     AVCodecID codecID = VAProfileToCodecID(profile);
     if (codecID == AV_CODEC_ID_NONE) {
       continue;
     }
+    //试试能不能支持这个
+    //可以，现在能走到这一步
+    // if (codecID == AV_CODEC_ID_HEVC)
+    // {
+    //   printf("\n there we have a HEVC codec \n");
+    // }
+
+    //这是什么意思？
+    //numEntryPoints是什么东西？
+    //GPT说，EntryPoints是入口点，入口点是指硬件加速视频编解码器的不同功能模块，例如解码、编码或视频处理等
+    //dpy：表示显示设备的句柄（handle），用于与硬件加速器进行通信。
+    //profile：表示要查询的配置文件的类型，用于指定所需的功能和性能要求。
+    //entrypoint_list：一个指向 VAEntrypoint 类型数组的指针，用于存储查询到的入口点列表。
+    //num_entrypoints：一个指向整数的指针，用于存储查询到的入口点数量。
+
 
     int numEntryPoints = 0;
     status = vaQueryConfigEntrypoints(mDisplay, profile, entryPoints,
@@ -1815,10 +1916,15 @@ nsTArray<AVCodecID> FFmpegVideoDecoder<LIBAV_VER>::GetAcceleratedFormats() {
         continue;
       }
       hwconfig->config_id = config;
+      //上面的过程先不看了，看看这个地方行不行
+      //感觉上面那个东西不一定和码流有关
       AddAcceleratedFormats(supportedHWCodecs, codecID, hwconfig);
       vaDestroyConfig(mDisplay, config);
     }
   }
+
+  //printf("\n Successed ,we get the supportedHWCodecs \n");
+  //这个地方应该已经OK了，可能再播放的时候有些不同
 
   return supportedHWCodecs;
 }

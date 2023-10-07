@@ -189,6 +189,12 @@ class gfxConfig {
 
  private:
   FeatureState& GetState(Feature aFeature) {
+    //kNumFeatures在下面有定义，是size_t(Feature::NumValues)
+    //Feature::NumValues在gfxFeature.h里定义
+    //先看看这个值是多少
+    //目前是33
+    //这个值可以随着添加枚举类型而增加，不需要去写增加的逻辑
+    //printf("\n the Feature::NumValues is %d\n",Feature::NumValues);
     MOZ_ASSERT(size_t(aFeature) < kNumFeatures);
     return mFeatures[size_t(aFeature)];
   }

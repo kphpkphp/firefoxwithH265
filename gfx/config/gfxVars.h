@@ -99,9 +99,12 @@ class gfxVarReceiver;
   _(AllowBackdropFilter, bool, true)                               \
   _(WebglOopAsyncPresentForceSync, bool, true)                     \
   _(UseAcceleratedCanvas2D, bool, false)                           \
-  _(AllowSoftwareWebRenderOGL, bool, false)
+  _(AllowSoftwareWebRenderOGL, bool, false)                         \
+  _(UseH265HwDecode, bool, false)
 
 /* Add new entries above this line. */
+//在上面加上H265的相关规则
+
 
 // Some graphics settings are computed on the UI process and must be
 // communicated to content and GPU processes. gfxVars helps facilitate
@@ -227,6 +230,10 @@ class gfxVars final {
   }
 
   using ArrayOfuint64_t = nsTArray<uint64_t>;
+
+  //GFX_VARS_LIST用GFX_VAR_DECL将内部一系列元组拼成一系列的方法
+  //GFX_VAR_DECL是将上面那个宏元组拼装起来的规则
+  //加上之后，先编再说
 
   GFX_VARS_LIST(GFX_VAR_DECL)
 #undef GFX_VAR_DECL
