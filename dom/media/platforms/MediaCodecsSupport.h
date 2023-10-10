@@ -15,6 +15,7 @@
 #include "nsTHashMap.h"
 #include "nsThreadUtils.h"
 
+//加个H265试试
 namespace mozilla::media {
 // List of codecs we support, used in the below macros
 // to generate MediaCodec and MediaCodecSupports enums.
@@ -29,7 +30,10 @@ namespace mozilla::media {
   X(MP3)           \
   X(Opus)          \
   X(Vorbis)        \
-  X(Wave)
+  X(Wave)          \
+  X(H265)          \
+  X(HEVC)
+  //H265和HEVC是新加的
 
 // Generate MediaCodec enum with the names of each codec we support.
 // Example: MediaCodec::H264

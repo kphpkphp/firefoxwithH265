@@ -527,7 +527,14 @@ DecodeSupportSet PDMFactory::Supports(
   return current->Supports(aParams, aDiagnostics);
 }
 
+//这里，这里调用了createandstartuppdm()诸方法
+//但是下面这些XRE_...方法又是怎么回事？
+//PDMFactory到底是负责启动一个新进程，还是根据现在所在的进程启动？
+//看看PDMFactory的构造，可能是在MediaFormatReader那里确定在哪个进程上构造PDMFacory的？
+//CreatePDMs()这个方法是被PDMFactory()构造函数调用的
 void PDMFactory::CreatePDMs() {
+  //AVC/HEVC都会走到这里
+  //printf("\n check if AVC/HEVC will come to here ,there is PDMFactory::CreatePDMs \n");
   if (StaticPrefs::media_use_blank_decoder()) {
     CreateAndStartupPDM<BlankDecoderModule>();
     // The Blank PDM SupportsMimeType reports true for all codecs; the creation
@@ -662,6 +669,8 @@ void PDMFactory::CreateContentPDMs() {
   }
 
   if (StaticPrefs::media_rdd_process_enabled()) {
+    //输出很多，不确定到底HEVC有没有到这里
+    //printf("\n check if AVC/HEVC can come to here ,here is PDMFactory::CreateContentPDMs \n");
     CreateAndStartupPDM<RemoteDecoderModule>(RemoteDecodeIn::RddProcess);
   }
 
@@ -896,10 +905,13 @@ media::MediaCodecsSupported PDMFactory::Supported(bool aForceRefresh) {
   return supported;
 }
 
+//这个方法会被RemoteDecoderManagerChild::Supports()调用
 /* static */
 DecodeSupportSet PDMFactory::SupportsMimeType(
     const nsACString& aMimeType, const MediaCodecsSupported& aSupported,
     RemoteDecodeIn aLocation) {
+      //AVC/HEVC会走到这里
+      //printf("\n test if HEVC will come to here , here is PDMFactory::SupportsMimeType \n");
   const TrackSupportSet supports =
       RemoteDecoderManagerChild::GetTrackSupport(aLocation);
 
@@ -920,6 +932,14 @@ DecodeSupportSet PDMFactory::SupportsMimeType(
 #endif
     if (TheoraDecoder::IsTheora(aMimeType)) {
       return MCSInfo::GetDecodeSupportSet(MediaCodec::Theora, aSupported);
+    }
+    //加上HEVC
+    //OK，有效
+    //这个地方的原理大概是，检索是否支持这种类型
+    //支持类型的列表在/dom/media/platforms/MediaCodecsSupport
+    if (MP4Decoder::IsH265(aMimeType)) {
+      //这个地方要看看
+      return MCSInfo::GetDecodeSupportSet(MediaCodec::H265, aSupported);
     }
   }
 

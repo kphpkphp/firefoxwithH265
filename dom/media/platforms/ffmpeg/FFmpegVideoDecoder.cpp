@@ -272,6 +272,9 @@ bool FFmpegVideoDecoder<LIBAV_VER>::CreateVAAPIDeviceContext() {
 MediaResult FFmpegVideoDecoder<LIBAV_VER>::InitVAAPIDecoder() {
   FFMPEG_LOG("Initialising VA-API FFmpeg decoder");
 
+  //OK,265不能进入VAAPIInitecoder
+  //printf("\n start to InitVAAPIDecoder \n");
+
   StaticMutexAutoLock mon(sMutex);
 
   // mAcceleratedFormats is already configured so check supported
@@ -280,6 +283,8 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::InitVAAPIDecoder() {
     if (!IsFormatAccelerated(mCodecID)) {
       FFMPEG_LOG("  Format %s is not accelerated",
                  mLib->avcodec_get_name(mCodecID));
+      //没有打印？265到不了这里吗？
+      //printf("\n Format is not accelerated \n");
       return NS_ERROR_NOT_AVAILABLE;
     } else {
       FFMPEG_LOG("  Format %s is accelerated",
@@ -358,6 +363,7 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::InitVAAPIDecoder() {
     if (!IsFormatAccelerated(mCodecID)) {
       FFMPEG_LOG("  Format %s is not accelerated",
                  mLib->avcodec_get_name(mCodecID));
+      //printf("  \n Format %s is not accelerated \n",mLib->avcodec_get_name(mCodecID));
       return NS_ERROR_NOT_AVAILABLE;
     }
   }
@@ -524,12 +530,17 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitHWDecodingPrefs() {
     //HEVC的条件分支
     case AV_CODEC_ID_HEVC:
       supported = gfx::gfxVars::UseH265HwDecode();
+      
       break;
     default:
       break;
   }
+  //此处HEVC是supported的
+  //printf("\n the supported is %d \n",supported);
+
   if (!supported) {
     mEnableHardwareDecoding = false;
+    //printf("\n this code is unsupported \n");
     FFMPEG_LOG("Codec %s is not accelerated", mLib->avcodec_get_name(mCodecID));
     return;
   }
@@ -549,12 +560,29 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitHWDecodingPrefs() {
   if (!XRE_IsRDDProcess()) {
     mEnableHardwareDecoding = false;
     FFMPEG_LOG("VA-API works in RDD process only");
+    //HEVC第二次以后的播放会走到这里
+    //奇怪，为什么
+    //第一次播放时不一定走到这里，可能能正常的启动VAAPI，但是第二次以后的播放一定会走到这里
+    //XRE_IsRDDProcess()是个方法，还不知道定义在哪里
+    //这个方法又是一个自动生成的文件里的
+    //当前不确定视频播放时是如何判断使用什么模型的
+    printf("\n VA-API works in RDD process only \n");
 
   }
+  //第一次播放是可以进入RDD Process的
+  // else
+  // {
+  //   printf("\n there is in RDD Process \n");
+  // }
+
+  //嗯，这里不对，HEVC的mEnableHardwareDecoding是0，AVC是1
   //printf("\n the mEnableHardwareDecoding is %d \n",mEnableHardwareDecoding);
   //printf("\n is over the HW is on \n");
 }
 #endif
+
+
+
 //这里就是Videoecoder的构造函数
 //在这里已经将aDisableHardwareDecoding设置为false，为何没有启动HEVC的硬件解码呢？
 //大概解码过程的实现有关吧？
@@ -610,6 +638,15 @@ FFmpegVideoDecoder<LIBAV_VER>::FFmpegVideoDecoder(
 //嗯，这里
   InitHWDecodingPrefs();
 #endif
+
+//这里HEVC是可以走到的，但是HEVC还是false
+ #ifdef MOZ_WAYLAND_USE_HWDECODE
+//   printf("\n the MOZ_WAYLAND_USE_HWDECODE is enabled \n");
+//  printf("\n mEnableHardwareDecoding is %d \n",mEnableHardwareDecoding);
+ //disablehardwaredecoding，HEVC时是0，有些别的地方改了这个值
+ // printf("\n aDisableHardwareDecoding is %d \n",aDisableHardwareDecoding);
+ #endif
+
 }
 
 FFmpegVideoDecoder<LIBAV_VER>::~FFmpegVideoDecoder() {
@@ -623,13 +660,24 @@ FFmpegVideoDecoder<LIBAV_VER>::~FFmpegVideoDecoder() {
 RefPtr<MediaDataDecoder::InitPromise> FFmpegVideoDecoder<LIBAV_VER>::Init() {
   MediaResult rv;
 
+  //printf("\n now start init the FFmpegVideoDecoder \n");
 #ifdef MOZ_WAYLAND_USE_HWDECODE
-  if (mEnableHardwareDecoding) {
+
+  //HEVC也能到这里
+  //printf("\n now ready to Init VAAPIDecoder \n");
+
+  //确实，HEVC在这里是false，但是为什么会这样？
+ // printf("\n mEnableHardwareDecoding is %d \n",mEnableHardwareDecoding);
+
+    if (mEnableHardwareDecoding) {
+      //ok，HEVC不能走到这里
+      //这个mEnableHardwareDecoding是在哪里设置的？看来之前还有一个设置的地方，AVC是true，HEVC是false
+      //printf("\n now ready to Init VAAPIDecoder \n");
 #  ifdef MOZ_ENABLE_VAAPI
     rv = InitVAAPIDecoder();
     if (NS_SUCCEEDED(rv)) {
       //确实，当前的问题就是InitVAAPIDecoder失败
-      //printf("\n InitVAAPIDecoder success!!! \n");
+     // printf("\n InitVAAPIDecoder success!!! \n");
       return InitPromise::CreateAndResolve(TrackInfo::kVideoTrack, __func__);
     }
 #  endif  // MOZ_ENABLE_VAAPI
@@ -642,6 +690,8 @@ RefPtr<MediaDataDecoder::InitPromise> FFmpegVideoDecoder<LIBAV_VER>::Init() {
       return InitPromise::CreateAndResolve(TrackInfo::kVideoTrack, __func__);
     }
 #  endif  // MOZ_ENABLE_V4L2
+
+  //printf("\nInitVAAPIDecoder fail!!!\n");
 
     mEnableHardwareDecoding = false;
   }
@@ -1179,7 +1229,7 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::DoDecode(
 
     MediaResult rv;
     //这里，可能是后续播放过程调用的地方
-    printf("\n now coming the DoDecode \n");
+    //printf("\n now coming the DoDecode \n");
 #  ifdef MOZ_WAYLAND_USE_HWDECODE
     if (IsHardwareAccelerated()) {
       if (mMissedDecodeInAverangeTime > HW_DECODE_LATE_FRAMES) {
@@ -1765,6 +1815,7 @@ static AVCodecID VAProfileToCodecID(VAProfile aVAProfile) {
   return AV_CODEC_ID_NONE;
 }
 
+//日志用的方法，没什么用XRE_IsRDDProcess
 static const char* VAProfileName(VAProfile aVAProfile) {
   for (const auto& profile : vaapi_profile_map) {
     if (profile.va_profile == aVAProfile) {

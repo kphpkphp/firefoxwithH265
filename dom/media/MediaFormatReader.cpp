@@ -355,11 +355,18 @@ void MediaFormatReader::DecoderFactory::RunStage(Data& aData) {
   }
 }
 
+//看看这里？
+//还是难以理解到底是在做什么
+//
 void MediaFormatReader::DecoderFactory::DoCreateDecoder(Data& aData) {
+  //AVC/HEVC都会走到这里
+  //printf("\n check if  AVC/HEVC come to here ,there is MediaFormatReader::DecoderFactory::DoCreateDecoder \n");
   AUTO_PROFILER_LABEL("DecoderFactory::DoCreateDecoder", MEDIA_PLAYBACK);
   auto& ownerData = aData.mOwnerData;
   auto& decoder = mOwner->GetDecoderData(aData.mTrack);
 
+  //此处，PDMFactory在构造时，似乎就已经会根据当前所在进程类型来创建相应的PDM
+  //还是测试一下，看看能不能在这里输出进程的类型
   RefPtr<PDMFactory> platform = new PDMFactory();
   if (decoder.IsEncrypted()) {
     MOZ_DIAGNOSTIC_ASSERT(mOwner->mCDMProxy);
@@ -386,6 +393,7 @@ void MediaFormatReader::DecoderFactory::DoCreateDecoder(Data& aData) {
     }
 
     case TrackType::kVideoTrack: {
+      //printf("\n OK, the firefox find this is a VideoTrack \n");
       // Decoders use the layers backend to decide if they can use hardware
       // decoding, so specify LAYERS_NONE if we want to forcibly disable it.
       using Option = CreateDecoderParams::Option;

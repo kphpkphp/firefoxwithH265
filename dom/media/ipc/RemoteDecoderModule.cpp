@@ -36,8 +36,20 @@ already_AddRefed<PlatformDecoderModule> RemoteDecoderModule::Create(
   return MakeAndAddRef<RemoteDecoderModule>(aLocation);
 }
 
+//看看HEVC能不能创建这个类
+//mLocation这个东西是外部传进来的
+//单例，用的是create方法创建的
+//似乎这个方法是被PDMFactory::CreateAndStartupPDM方法调用的
+//也可能被MFMediaEngineeDcoderModule调用，这个东西是windows下的东西，不用考虑
+//关键是这个aLocation是怎么回事
+//PDMFactory::CreateAndStartupPDM()方法会传入aLocation
+//感觉不应该，在创建时，aLocation应该就是RDD才对
 RemoteDecoderModule::RemoteDecoderModule(RemoteDecodeIn aLocation)
-    : mLocation(aLocation) {}
+    : mLocation(aLocation) {
+      //似乎是构造了这个类
+      //进一步调查一下
+      //printf("\n RemoteDecoderModule is constructing \n");
+    }
 
 media::DecodeSupportSet RemoteDecoderModule::SupportsMimeType(
     const nsACString& aMimeType, DecoderDoctorDiagnostics* aDiagnostics) const {
@@ -61,13 +73,19 @@ media::DecodeSupportSet RemoteDecoderModule::Supports(
   if (supports) {
     // TODO: Note that we do not yet distinguish between SW/HW decode support.
     //       Will be done in bug 1754239.
+    //printf("\n check does HEVC/AVC will output in there \n");
     return media::DecodeSupport::SoftwareDecode;
   }
+  //HEVC在这里有输出而AVC没有，先尝试一下在这里修改吧
+  //printf("\n check does HEVC/AVC will output in there \n");
   return media::DecodeSupport::Unsupported;
 }
 
 RefPtr<RemoteDecoderModule::CreateDecoderPromise>
 RemoteDecoderModule::AsyncCreateDecoder(const CreateDecoderParams& aParams) {
+  //嗯，AVC能走到这里而HEVC不能
+  //这个类是PlatformDecoderModule的一个派生类，对这个方法的调用可能是通过Platformecoderodule来执行的
+  //printf("check RemoteDecoderModule AsyncCreateDecoder does used");
   if (aParams.mConfig.IsAudio()) {
     // OpusDataDecoder will check this option to provide the same info
     // that IsDefaultPlaybackDeviceMono provides.  We want to avoid calls

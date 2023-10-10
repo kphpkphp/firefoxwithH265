@@ -79,8 +79,13 @@ class PDMFactory final {
   void CreateContentPDMs();
   void CreateDefaultPDMs();
 
+    //这里，看来会调用remotedecodermodule
+    //测试一下
+    //这个方法会被PDMFactory::CreatexxxPDMs一系列方法调用
   template <typename DECODER_MODULE, typename... ARGS>
   bool CreateAndStartupPDM(ARGS&&... aArgs) {
+    //打印出的消息过多了，怀疑每一种模型都会调用一次这个方法
+    //printf("\n check if AVC/HEVC will come to here \n");
     return StartupPDM(DECODER_MODULE::Create(std::forward<ARGS>(aArgs)...));
   }
 

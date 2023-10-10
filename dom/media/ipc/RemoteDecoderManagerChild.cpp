@@ -28,6 +28,8 @@
 #include "nsContentUtils.h"
 #include "nsIObserver.h"
 #include "nsPrintfCString.h"
+//为了测试HEVC
+// #include "MP4Decoder.h"
 
 #ifdef MOZ_WMF_MEDIA_ENGINE
 #  include "MFMediaEngineChild.h"
@@ -226,10 +228,18 @@ nsISerialEventTarget* RemoteDecoderManagerChild::GetManagerThread() {
   return *remoteDecoderManagerThread;
 }
 
+//这个地方需要看一下
+//不知道这个方法被谁使用
+//此方法被RemoteDecoderModule::Supports()调用
 /* static */
 bool RemoteDecoderManagerChild::Supports(
     RemoteDecodeIn aLocation, const SupportDecoderParams& aParams,
     DecoderDoctorDiagnostics* aDiagnostics) {
+      //HEVC和AVC都会走到这里
+      //printf("\n test test test \n");
+      //这个MediaCodecsSupported又是个枚举
+      //这个枚举里面不包括HEVC，枚举定义在/dom/media/platforms/MediaCodecsSupport.h
+      //看来这个sProcessSupported是个类似集合的东西
   Maybe<media::MediaCodecsSupported> supported;
   switch (aLocation) {
     case RemoteDecodeIn::GpuProcess:
@@ -239,24 +249,36 @@ bool RemoteDecoderManagerChild::Supports(
     case RemoteDecodeIn::UtilityProcess_WMF:
     case RemoteDecodeIn::UtilityProcess_MFMediaEngineCDM: {
       StaticMutexAutoLock lock(sProcessSupportedMutex);
+      //sProcessSupported不知道是个什么方法,似乎又是编译时生成的东西
+      //printf("\n there is supported \n");
       supported = sProcessSupported[aLocation];
+            //printf(" \n now the aLocation is supported \n");
       break;
+
     }
     default:
       return false;
   }
+
+  //printf("\n  \n");
+
   if (!supported) {
+    //HEVC似乎会走到这里
+    //printf("\n something went wrong we are unsupported \n");
     // We haven't received the correct information yet from either the GPU or
     // the RDD process nor the Utility process.
     if (aLocation == RemoteDecodeIn::UtilityProcess_Generic ||
         aLocation == RemoteDecodeIn::UtilityProcess_AppleMedia ||
         aLocation == RemoteDecodeIn::UtilityProcess_WMF ||
         aLocation == RemoteDecodeIn::UtilityProcess_MFMediaEngineCDM) {
+          //看来HEVC会走到这里
+          //printf("\n launch the utilityprocess \n");
       LaunchUtilityProcessIfNeeded(aLocation);
     }
     if (aLocation == RemoteDecodeIn::RddProcess) {
       // Ensure the RDD process got started.
       // TODO: This can be removed once bug 1684991 is fixed.
+      //printf("\n launch the rdd process \n");
       LaunchRDDProcessIfNeeded();
     }
 
@@ -266,6 +288,17 @@ bool RemoteDecoderManagerChild::Supports(
     const bool isAudio = aParams.mConfig.IsAudio();
     const auto trackSupport = GetTrackSupport(aLocation);
     if (isVideo) {
+      //firefox官方在这里有一个HEVC的分支条件，似乎是为了确保HEVC只在windows上可用
+      //试试HEVC能不能走到这里
+      //看来是可以的
+      //  if (MP4Decoder::IsH265(aParams.mConfig.mMimeType)) {
+      //   printf("\n there is HEVC and it can recognized as video \n");
+      // }
+      // else
+      // {
+      //     printf("\n there is another codec video or the HEVC can't recognized \n");
+      // }
+      
       return trackSupport.contains(TrackSupport::Video);
     }
     if (isAudio) {
@@ -348,13 +381,19 @@ RemoteDecoderManagerChild::CreateAudioDecoder(
             __func__);
       });
 }
-
+//MOZ_ASSERT(aLocation != RemoteDecodeIn::Unspecified);这一句无法通过
+//看看这个方法是怎么被调用的
+//也许和上面那个support有关？
+//CreateVideoDecoder()方法被/dom/media/ipc/RemoteDecoderModule.cpp中的RemoteDecoderModule::AsyncCreateDecoder()方法调用
 /* static */
 RefPtr<PlatformDecoderModule::CreateDecoderPromise>
 RemoteDecoderManagerChild::CreateVideoDecoder(
     const CreateDecoderParams& aParams, RemoteDecodeIn aLocation) {
+      //AVC、HEVC都会走到这里
+      //printf("\n test test test test \n");
   nsCOMPtr<nsISerialEventTarget> managerThread = GetManagerThread();
   if (!managerThread) {
+   // printf("\n test test test test  managerThread\n");
     // We got shutdown.
     return PlatformDecoderModule::CreateDecoderPromise::CreateAndReject(
         NS_ERROR_DOM_MEDIA_CANCELED, __func__);
@@ -363,11 +402,13 @@ RemoteDecoderManagerChild::CreateVideoDecoder(
   if (!aParams.mKnowsCompositor && aLocation == RemoteDecodeIn::GpuProcess) {
     // We don't have an image bridge; don't attempt to decode in the GPU
     // process.
+    //printf("\n test test test test aLocation GPU \n");
     return PlatformDecoderModule::CreateDecoderPromise::CreateAndReject(
         NS_ERROR_DOM_MEDIA_NOT_SUPPORTED_ERR, __func__);
   }
 
   if (!GetTrackSupport(aLocation).contains(TrackSupport::Video)) {
+    //printf("\n test test test test contains video \n");
     return PlatformDecoderModule::CreateDecoderPromise::CreateAndReject(
         MediaResult(NS_ERROR_DOM_MEDIA_CANCELED,
                     nsPrintfCString("%s doesn't support video decoding",
@@ -375,9 +416,12 @@ RemoteDecoderManagerChild::CreateVideoDecoder(
                         .get()),
         __func__);
   }
-
+  //HEVC可以到这里
+  //printf("\n before MOZ_ASSERT \n");
+  //这个地方有点奇怪，RemoteDecodeIn aLocation是什么？
   MOZ_ASSERT(aLocation != RemoteDecodeIn::Unspecified);
-
+  //HEVC不能走到这里
+  //printf("\n after MOZ_ASSERT \n");
   RefPtr<GenericNonExclusivePromise> p;
   if (aLocation == RemoteDecodeIn::GpuProcess) {
     p = GenericNonExclusivePromise::CreateAndResolve(true, __func__);
@@ -387,6 +431,8 @@ RemoteDecoderManagerChild::CreateVideoDecoder(
     p = LaunchRDDProcessIfNeeded();
   }
   LOG("Create video decoder in %s", RemoteDecodeInToStr(aLocation));
+  //HEVC不能走到这里
+  //printf("\n the RemoteDecodeInToStr(aLocation)) is %s \n",RemoteDecodeInToStr(aLocation));
 
   return p->Then(
       managerThread, __func__,
@@ -458,6 +504,9 @@ RefPtr<GenericNonExclusivePromise>
 RemoteDecoderManagerChild::LaunchRDDProcessIfNeeded() {
   MOZ_DIAGNOSTIC_ASSERT(XRE_IsContentProcess(),
                         "Only supported from a content process.");
+  //嗯，看来HEVC不会走到这里，只有AVC能走到这里
+  //为何如此呢？
+  //printf("\n test test test \n");
 
   nsCOMPtr<nsISerialEventTarget> managerThread = GetManagerThread();
   if (!managerThread) {
@@ -877,8 +926,18 @@ void RemoteDecoderManagerChild::HandleFatalError(const char* aMsg) {
   dom::ContentChild::FatalErrorIfNotUsingGPUProcess(aMsg, OtherPid());
 }
 
+//ContentChild::RecvUpdateMediaCodecsSupported()方法会调用这个方法
+//定义在/dom/ipc/ContentChild.cpp里
+//不对头，似乎这个方法不会被linux下的进程调用
+//县放弃
 void RemoteDecoderManagerChild::SetSupported(
     RemoteDecodeIn aLocation, const media::MediaCodecsSupported& aSupported) {
+      //aSupported是EnumSet
+      //看来SetSupported只会调用一次，后面只会调用Supported
+      //printf("\n aSupported is  %d \n",aSupported);
+      //printf("\n there is SetSupported \n");
+      //猜想，在这里赋值，后续播放就检索是否Supported
+      //sProcessSupported这个东西只在RemoteDecoderManagerChild这里被使用
   switch (aLocation) {
     case RemoteDecodeIn::GpuProcess:
     case RemoteDecodeIn::RddProcess:
