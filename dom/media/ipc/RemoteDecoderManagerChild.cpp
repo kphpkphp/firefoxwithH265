@@ -432,6 +432,7 @@ RemoteDecoderManagerChild::CreateVideoDecoder(
   }
   LOG("Create video decoder in %s", RemoteDecodeInToStr(aLocation));
   //HEVC不能走到这里
+  //经修改HEVC可以走到这里
   //printf("\n the RemoteDecodeInToStr(aLocation)) is %s \n",RemoteDecodeInToStr(aLocation));
 
   return p->Then(

@@ -19,6 +19,7 @@
 #if LIBAVCODEC_VERSION_MAJOR >= 58
 #  include "mozilla/ProfilerMarkers.h"
 #endif
+//此处在最新版本代码库里改成了MOZ_USE_HWDECODE
 #ifdef MOZ_WAYLAND_USE_HWDECODE
 #  include "H264.h"
 #  include "mozilla/gfx/gfxVars.h"
@@ -737,6 +738,7 @@ static bool IsYUVFormat(const AVPixelFormat& aFormat) {
   return aFormat != AV_PIX_FMT_GBRP;
 }
 
+//这似乎是将FFmpeg的色彩转成firefox的色彩
 static gfx::YUVColorSpace TransferAVColorSpaceToColorSpace(
     const AVColorSpace aSpace, const AVPixelFormat aFormat,
     const gfx::IntSize& aSize) {
@@ -762,8 +764,10 @@ static gfx::YUVColorSpace TransferAVColorSpaceToColorSpace(
 #ifdef CUSTOMIZED_BUFFER_ALLOCATION
 static int GetVideoBufferWrapper(struct AVCodecContext* aCodecContext,
                                  AVFrame* aFrame, int aFlags) {
+  //这是干什么？获取自身？
   auto* decoder =
       static_cast<FFmpegVideoDecoder<LIBAV_VER>*>(aCodecContext->opaque);
+  //大概是更新image吧
   int rv = decoder->GetVideoBuffer(aCodecContext, aFrame, aFlags);
   return rv < 0 ? decoder->GetVideoBufferDefault(aCodecContext, aFrame, aFlags)
                 : rv;
@@ -800,6 +804,7 @@ static bool IsYUV420Sampling(const AVPixelFormat& aFormat) {
          aFormat == AV_PIX_FMT_YUV420P10LE || aFormat == AV_PIX_FMT_YUV420P12LE;
 }
 
+//TextureClient,是不是某种渲染用的组件
 layers::TextureClient*
 FFmpegVideoDecoder<LIBAV_VER>::AllocateTextureClientForImage(
     struct AVCodecContext* aCodecContext, PlanarYCbCrImage* aImage) {
@@ -885,6 +890,11 @@ FFmpegVideoDecoder<LIBAV_VER>::AllocateTextureClientForImage(
   return aImage->GetTextureClient(mImageAllocator);
 }
 
+//获取videobuffer
+//这是做什么呢？
+//AVFrame这个数据结构，根据注释，用于描述解码后的raw音频或视频数据
+//AVFrame一般分配一次之后多次使用，有一些方法能将其清空
+//这个方法被GetVideoBufferWrapper()调用
 int FFmpegVideoDecoder<LIBAV_VER>::GetVideoBuffer(
     struct AVCodecContext* aCodecContext, AVFrame* aFrame, int aFlags) {
   FFMPEG_LOGV("GetVideoBuffer: aCodecContext=%p aFrame=%p", aCodecContext,
@@ -901,7 +911,8 @@ int FFmpegVideoDecoder<LIBAV_VER>::GetVideoBuffer(
   if (!(aCodecContext->codec->capabilities & AV_CODEC_CAP_DR1)) {
     return AVERROR(EINVAL);
   }
-
+  //这是什么意思？预分配？
+  //看注释，这个意思是，在软解码时，ffmpeg会引用已经解码完成的frames（I帧？），如果这些帧在shmem buffer上（shmem似乎是某种共享内存），就会造成需要GPU读取CPU上的数据，这是缓慢的
   // Pre-allocation is only for sw decoding. During decoding, ffmpeg decoder
   // will need to reference decoded frames, if those frames are on shmem buffer,
   // then it would cause a need to read CPU data from GPU, which is slow.
@@ -956,6 +967,9 @@ int FFmpegVideoDecoder<LIBAV_VER>::GetVideoBuffer(
     return AVERROR(EINVAL);
   }
 
+  //创建某种数据结构来存放渲染素材？
+  //TextureClient定义在/gfx/layers/client/TextureClient里
+  //注释：TextureClient是texture数据的一个thin抽象，用于在content进程和compositor进程上共享，主要用于将texture数据以一种IPCsystem能理解的方式存储，如将IPC不友好的图片数据序列化，或者直接用于绘图以避免拷贝
   RefPtr<layers::TextureClient> texture =
       AllocateTextureClientForImage(aCodecContext, image);
   if (!texture) {
@@ -969,12 +983,15 @@ int FFmpegVideoDecoder<LIBAV_VER>::GetVideoBuffer(
   }
   auto autoUnlock = MakeScopeExit([&] { texture->Unlock(); });
 
+  //这是用map存储的YCbCr格式的图像数据吧
   layers::MappedYCbCrTextureData mapped;
+  //把texture里的数据放到mapped里面
   if (!texture->BorrowMappedYCbCrData(mapped)) {
     FFMPEG_LOG("Failed to borrow mapped data for the texture");
     return AVERROR(EINVAL);
   }
 
+  //用mapped里的数据给aFrame赋值
   aFrame->data[0] = mapped.y.data;
   aFrame->data[1] = mapped.cb.data;
   aFrame->data[2] = mapped.cr.data;
@@ -990,9 +1007,12 @@ int FFmpegVideoDecoder<LIBAV_VER>::GetVideoBuffer(
   aFrame->reordered_opaque = aCodecContext->reordered_opaque;
   MOZ_ASSERT(aFrame->data[0] && aFrame->data[1] && aFrame->data[2]);
 
+  //ffmpeg不需要时，这个buffer就会被抛弃
   // This will hold a reference to image, and the reference would be dropped
   // when ffmpeg tells us that the buffer is no longer needed.
   auto imageWrapper = MakeRefPtr<ImageBufferWrapper>(image.get(), this);
+  //创建av buffer
+  //AVbuffer是FFmpeg存储和管理数据的地方
   aFrame->buf[0] =
       mLib->av_buffer_create(aFrame->data[0], dataSize.value(),
                              ReleaseVideoBufferWrapper, imageWrapper.get(), 0);
@@ -1004,12 +1024,16 @@ int FFmpegVideoDecoder<LIBAV_VER>::GetVideoBuffer(
   FFMPEG_LOG("Created av buffer, buf=%p, data=%p, image=%p, sz=%d",
              aFrame->buf[0], aFrame->data[0], imageWrapper.get(),
              dataSize.value());
+             //mAllocatedImages是ffmpeg的buffers，在使用custom allocator解码时用于存储解码后的数据，
+             //images被mAllocatedImages管理，并被ffmpeg使用，ffmpeg保存它们的引用，并将这些引用用在ffmpeg自己的解码任务队列中
   mAllocatedImages.Insert(imageWrapper.get());
   mIsUsingShmemBufferForDecode = Some(true);
   return 0;
 }
 #endif
 
+//初始化编码语境
+//这个decode_threads是做什么的
 void FFmpegVideoDecoder<LIBAV_VER>::InitCodecContext() {
   mCodecContext->width = mInfo.mImage.width;
   mCodecContext->height = mInfo.mImage.height;
@@ -1018,6 +1042,8 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitCodecContext() {
   // so that we end up behaving in the same fashion when using ffmpeg as
   // we would otherwise cause various crashes (see bug 1236167)
   int decode_threads = 1;
+  //根据video渲染之后的像素宽度确定要使用的线程数
+  
   if (mInfo.mDisplay.width >= 2048) {
     decode_threads = 8;
   } else if (mInfo.mDisplay.width >= 1024) {
@@ -1025,6 +1051,8 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitCodecContext() {
   } else if (mInfo.mDisplay.width >= 320) {
     decode_threads = 2;
   }
+//经测试，硬解不会走到这里，软解时AVC、HEVC都会走到这里
+  printf("the decode_threads is %d ",decode_threads);
 
   if (mLowLatency) {
     mCodecContext->flags |= AV_CODEC_FLAG_LOW_DELAY;
@@ -1034,8 +1062,15 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitCodecContext() {
   } else {
     decode_threads = std::min(decode_threads, PR_GetNumberOfProcessors() - 1);
     decode_threads = std::max(decode_threads, 1);
+    //thread_count
+    //mCodecContext定义在基类里，是AVCodecContext类型，thread_count是int成员，根据注释，这个成员用于确定有多少独立任务会进入execute()
     mCodecContext->thread_count = decode_threads;
     if (decode_threads > 1) {
+      //ffmpeg支持两个级别的并行解码
+      //SLICE-level并行：将一帧划分为几个slice，几个slice间相互独立，可以并行解码，SLICE就是为了并行处理而设计的
+      //FRAME-level并行：同时解码几个帧，需要处理好几个帧之间的依赖关系
+      //AVCodecContext的注释提及，FRAME级别并行可能提高解码延迟，所以无法提供未来frames的clients不要使用FRAME级并行
+      //看看这个mCodecContext何时被使用
       mCodecContext->thread_type = FF_THREAD_SLICE | FF_THREAD_FRAME;
     }
   }
@@ -1059,6 +1094,7 @@ nsCString FFmpegVideoDecoder<LIBAV_VER>::GetCodecName() const {
   return nsLiteralCString("FFmpegAudioDecoder");
 #endif
 }
+
 
 #ifdef MOZ_WAYLAND_USE_HWDECODE
 void FFmpegVideoDecoder<LIBAV_VER>::InitHWCodecContext(bool aUsingV4L2) {
@@ -1179,6 +1215,10 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::DoDecode(
 
 #if LIBAVCODEC_VERSION_MAJOR >= 58
   packet.duration = aSample->mDuration.ToMicroseconds();
+  //在这里启动解码过程
+  //这个方法大概是ffmpeg的方法了
+  //avcodec_send_packet方法将数据发给ffmpeg，放入解码队列中
+  //avcodec_receive_frame从解码成功的队列中取出1个frame
   int res = mLib->avcodec_send_packet(mCodecContext, &packet);
   if (res < 0) {
     // In theory, avcodec_send_packet could sent -EAGAIN should its internal
