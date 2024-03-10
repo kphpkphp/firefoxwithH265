@@ -95,10 +95,12 @@ class MediaError;
 class MediaSource;
 class PlayPromise;
 class Promise;
+//轨道
 class TextTrackList;
 class AudioTrackList;
 class VideoTrackList;
 
+//流的获取模式枚举
 enum class StreamCaptureType : uint8_t { CAPTURE_ALL_TRACKS, CAPTURE_AUDIO };
 
 enum class StreamCaptureBehavior : uint8_t {

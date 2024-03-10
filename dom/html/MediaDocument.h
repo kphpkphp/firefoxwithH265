@@ -113,6 +113,7 @@ class MediaDocumentStreamListener : public nsIStreamListener,
   void DropDocumentRef() { mDocument = nullptr; }
 
   RefPtr<MediaDocument> mDocument;
+  //nsIStreamListener是一个侦听器，用于监听文件流，每当当前请求要求的data到位时，将调用onDataAvailable()方法
   nsCOMPtr<nsIStreamListener> mNextStream;
 };
 

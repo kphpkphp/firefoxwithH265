@@ -44,10 +44,11 @@ NS_IMPL_ISUPPORTS(MediaDocumentStreamListener, nsIRequestObserver,
 NS_IMETHODIMP
 MediaDocumentStreamListener::OnStartRequest(nsIRequest* request) {
   NS_ENSURE_TRUE(mDocument, NS_ERROR_FAILURE);
-
+  //从这里激活VideoDocument对象，开始进行渲染
   mDocument->StartLayout();
 
   if (mNextStream) {
+    //onstartrequest这个方法发起一次异步请求
     return mNextStream->OnStartRequest(request);
   }
 
@@ -227,6 +228,7 @@ nsresult MediaDocument::CreateSyntheticDocument() {
 
 nsresult MediaDocument::StartLayout() {
   mMayStartLayout = true;
+  //PresShell是渲染控制器，里面包括document的指针、待渲染内容、样式管理器、root帧等
   RefPtr<PresShell> presShell = GetPresShell();
   // Don't mess with the presshell if someone has already handled
   // its initial reflow.

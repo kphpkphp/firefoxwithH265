@@ -17,15 +17,17 @@ namespace mozilla::dom {
 
 class VideoDocument final : public MediaDocument {
  public:
+ //视频类型枚举
   enum MediaDocumentKind MediaDocumentKind() const override {
     return MediaDocumentKind::Video;
   }
-
+  //开始加载视频
   virtual nsresult StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
                                      nsILoadGroup* aLoadGroup,
                                      nsISupports* aContainer,
                                      nsIStreamListener** aDocListener,
                                      bool aReset = true) override;
+  //这是用于给脚本语言调用的接口对象
   virtual void SetScriptGlobalObject(
       nsIScriptGlobalObject* aScriptGlobalObject) override;
 
@@ -36,8 +38,10 @@ class VideoDocument final : public MediaDocument {
     MediaDocument::Destroy();
   }
 
+  //创建视频element并开始加载资源
   nsresult StartLayout() override;
 
+//创建视频对象、获取视频title、视频流的监视器
  protected:
   nsresult CreateVideoElement();
   // Sets document <title> to reflect the file name and description.
@@ -49,10 +53,11 @@ class VideoDocument final : public MediaDocument {
 nsresult VideoDocument::StartDocumentLoad(
     const char* aCommand, nsIChannel* aChannel, nsILoadGroup* aLoadGroup,
     nsISupports* aContainer, nsIStreamListener** aDocListener, bool aReset) {
+  //开始加载资源
   nsresult rv = MediaDocument::StartDocumentLoad(
       aCommand, aChannel, aLoadGroup, aContainer, aDocListener, aReset);
   NS_ENSURE_SUCCESS(rv, rv);
-
+  //监视器
   mStreamListener = new MediaDocumentStreamListener(this);
   NS_ADDREF(*aDocListener = mStreamListener);
   return rv;
@@ -65,6 +70,9 @@ nsresult VideoDocument::StartLayout() {
   // to have been created by now, so the MediaDecoder will be able to tell
   // what kind of compositor we have, so the video element knows whether
   // it can create a hardware accelerated video decoder or not.
+
+  //创建video element，开始加载media resource，注意此时才开始创建video element，（MediaDocumentStreamListener::OnStartRequest调用了我们，）因为PressShell可能此时才被创建，
+  //所以MediaDecoder可以知道我们有什么样的compositor，video element就知道是否可以使用硬解
   nsresult rv = CreateVideoElement();
   NS_ENSURE_SUCCESS(rv, rv);
 
