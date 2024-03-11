@@ -20,6 +20,8 @@ class BaseMediaResource;
 
 DDLoggedTypeDeclNameAndBase(ChannelMediaDecoder, MediaDecoder);
 
+
+//ChannelMediaDecoder是底层解码器与视频对象抽象的一个中间层，实际控制视频解码过程
 class ChannelMediaDecoder
     : public MediaDecoder,
       public DecoderDoctorLifeLogger<ChannelMediaDecoder> {
@@ -77,6 +79,8 @@ class ChannelMediaDecoder
   // Create a decoder for the given aType. Returns null if we were unable
   // to create the decoder, for example because the requested MIME type in
   // the init struct was unsupported.
+
+  //根据指定的类型创建decoder，如果不能创建，返回NULL，
   static already_AddRefed<ChannelMediaDecoder> Create(
       MediaDecoderInit& aInit, DecoderDoctorDiagnostics* aDiagnostics);
 
@@ -87,6 +91,7 @@ class ChannelMediaDecoder
   // Create a new decoder of the same type as this one.
   already_AddRefed<ChannelMediaDecoder> Clone(MediaDecoderInit& aInit);
 
+  //加载资源
   nsresult Load(nsIChannel* aChannel, bool aIsPrivateBrowsing,
                 nsIStreamListener** aStreamListener);
 
@@ -102,6 +107,7 @@ class ChannelMediaDecoder
   void DownloadProgressed();
 
   // Create a new state machine to run this decoder.
+  //创建MDSM，这是一个状态机，用于管理解码过程
   MediaDecoderStateMachineBase* CreateStateMachine(
       bool aDisableExternalEngine) override;
 

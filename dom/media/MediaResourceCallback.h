@@ -29,6 +29,8 @@ DDLoggedTypeDeclName(MediaResourceCallback);
  * gtests for the readers without using a mock MediaResource when you don't
  * care about the events notified by the MediaResource.
  */
+
+//回调，用于mediaresource，如filemediaresource、rtspmediaresource、channelmediaresource，提醒事件，当前只有mediadecoder实现了
 class MediaResourceCallback
     : public DecoderDoctorLifeLogger<MediaResourceCallback> {
  public:

@@ -111,6 +111,43 @@ audio data off the queue and plays it with a blocking write to the audio
 hardware (via AudioStream).
 
 */
+
+//每个media file的media element都有一个称为audio thread的线程
+/*
+audio thread 将解码后的audio data写入 audio hardware，这个过程是在一个独立的线程中进行的，来保证audio hardware
+获取独立的文件流，而不会被解码或展示而打断，某些时候AudioStream会被重新生成，来获取一个回调接口，
+
+element/state machine有一个TaskQueue，它运行在一个线程池中，这个线程池被其他元素/decoder共享，state machine将任务
+分发到线程池中，来调用MediaDecoderReader来获取解码后的audio或video数据，Reader在有了解码后数据后，将进行回调
+state machine将解码后的数据放到队列中，供消费者线程获取
+
+MediaDecoderReader可以选择同步或异步解码，并且通过回调函数将被请求的samples同步的放到回调函数里，异步解码是更推荐的
+线程间的状态同步通过MediaDecoder所属的监视器实现
+
+在运行在共享的state machine线程上时，audio thread的生命周期由state machine控制，每当播放需要建立audio 线程并且一个事件
+要求启动它时，并且当audio播放不再需要或结束时将停止。
+
+A/V同步通过state machine控制，它检验audio的播放事件，并且将它与video frames队列中的下一帧比对，如果视频时间正确，则播放它
+否则将state machine的时间表重设，在下一帧的时候重新运行一次
+
+帧跳过：1.state machine将跳过video queue中所有时间早于当前audio时间的帧
+
+2. 当解码中间帧必须下一关键帧时，decode任务将停止解码中间帧并读取下一关键帧，这会发出一个播放issues
+
+这一事件通过如下方式确定：
+1. audio queue中数据的数量低于阈值，此时audio可能会开始跳过
+2. 如果video queue中的数据量低于阈值，可能是因为解码线程会直接丢弃frame
+
+当没有硬件加速图像时，YCbCr转换在decode任务队列中进行，和video frames解码过程一起
+
+解码任务队列将姐妹后的audio和videos帧放到两个独立的队列中，一个audio，一个video，这保证可以持续将audio帧输入硬件同时允许video帧
+跳过，这些队列都是线程安全的，并且decode、audio、state machine都不应该阻塞它
+
+两个队列都有最大值，达到阈值时decode tasks将不再请求video或audio，如果都满了，那么decode任务将不再发布
+
+在播放中，如果audio queue是空的，audio thread将是空闲的，否则audio将不断从queue中读取audio data并通过block的方式在hardware中播放。
+
+*/
 class MediaDecoderStateMachine
     : public MediaDecoderStateMachineBase,
       public DecoderDoctorLifeLogger<MediaDecoderStateMachine> {
@@ -355,6 +392,7 @@ class MediaDecoderStateMachine
   // @param aRequestNextVideoKeyFrame
   // If aRequestNextKeyFrame is true, will request data for the next keyframe
   // after aCurrentTime.
+  //启动解码任务
   void RequestVideoData(const media::TimeUnit& aCurrentTime,
                         bool aRequestNextKeyFrame = false);
 

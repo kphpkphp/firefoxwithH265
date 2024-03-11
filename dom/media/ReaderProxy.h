@@ -23,6 +23,10 @@ namespace mozilla {
  * It also adjusts the seek target passed to Seek() to ensure correct seek time
  * is passed to the underlying reader.
  */
+
+//MediaFormatReader的一个包装，提供Audio/Video的时间戳，保证MDSM总是能假定起始时间是0，并且也
+//对Seek()函数的目标时间进行调整，以确保传给底层reader的时间正确
+
 class ReaderProxy {
   using MetadataPromise = MediaFormatReader::MetadataPromise;
   using AudioDataPromise = MediaFormatReader::AudioDataPromise;

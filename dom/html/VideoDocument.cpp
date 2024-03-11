@@ -118,6 +118,7 @@ nsresult VideoDocument::CreateVideoElement() {
   if (!element) return NS_ERROR_OUT_OF_MEMORY;
   element->SetAutoplay(true, IgnoreErrors());
   element->SetControls(true, IgnoreErrors());
+  //加载资源并开始解码，这个方法是在基类里定义的
   element->LoadWithChannel(mChannel,
                            getter_AddRefs(mStreamListener->mNextStream));
   UpdateTitle(mChannel);

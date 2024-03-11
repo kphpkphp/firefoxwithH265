@@ -27,6 +27,7 @@ class BaseMediaResource : public MediaResource,
    * Create a resource, reading data from the channel. Call on main thread only.
    * The caller must follow up by calling resource->Open().
    */
+  //创建资源，从channel中读取data，
   static already_AddRefed<BaseMediaResource> Create(
       MediaResourceCallback* aCallback, nsIChannel* aChannel,
       bool aIsPrivateBrowsing);
@@ -80,6 +81,8 @@ class BaseMediaResource : public MediaResource,
    * Open the stream. This creates a stream listener and returns it in
    * aStreamListener; this listener needs to be notified of incoming data.
    */
+
+  //开启视频流，这创建一个视频流监视器并将其存储到aStreamListener里
   virtual nsresult Open(nsIStreamListener** aStreamListener) = 0;
 
   // If this returns false, then we shouldn't try to clone this MediaResource
@@ -98,6 +101,7 @@ class BaseMediaResource : public MediaResource,
   }
 
   // Returns true if the resource is a live stream.
+  //如果是直播，返回true
   virtual bool IsLiveStream() const { return false; }
 
   virtual size_t SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const {
@@ -133,6 +137,7 @@ class BaseMediaResource : public MediaResource,
 
   // Channel used to download the media data. Must be accessed
   // from the main thread only.
+  //用于获取media data
   nsCOMPtr<nsIChannel> mChannel;
 
   // URI in case the stream needs to be re-opened. Access from

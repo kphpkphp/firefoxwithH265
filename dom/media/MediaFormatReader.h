@@ -95,6 +95,8 @@ class MediaFormatReader final
   // But in the current architecture it's only ever used exclusively (by MDSM),
   // so we mark it that way to verify our assumptions. If you have a use-case
   // for multiple WaitForData consumers, feel free to flip the exclusivity here.
+
+  //waitfordata是一个非排他的场景，但是当前的架构，这个方法只被MDSM使用，如果有多个Waitfordata的消费者，这里可以随便用
   using WaitForDataPromise =
       MozPromise<MediaData::Type, WaitForDataRejectValue, IsExclusive>;
 
@@ -103,12 +105,14 @@ class MediaFormatReader final
 
   // Initializes the reader, returns NS_OK on success, or NS_ERROR_FAILURE
   // on failure.
+  //初始化reader
   nsresult Init();
 
   size_t SizeOfVideoQueueInFrames();
   size_t SizeOfAudioQueueInFrames();
 
   // Requests one video sample from the reader.
+  // 请求一个video sample（解码后的）
   RefPtr<VideoDataPromise> RequestVideoData(
       const media::TimeUnit& aTimeThreshold,
       bool aRequestNextVideoKeyFrame = false);
@@ -117,6 +121,8 @@ class MediaFormatReader final
   //
   // The decode should be performed asynchronously, and the promise should
   // be resolved when it is complete.
+
+  //请求一个audio sample，decode将异步执行，并且promise在执行结束时将resolved
   RefPtr<AudioDataPromise> RequestAudioData();
 
   // The default implementation of AsyncReadMetadata is implemented in terms of
@@ -132,6 +138,7 @@ class MediaFormatReader final
 
   // Called once new data has been cached by the MediaResource.
   // mBuffered should be recalculated and updated accordingly.
+  // 从MediaResource来的数据被cache的时候，将被调用
   void NotifyDataArrived();
 
   // Update ID for the external playback engine. Currently it's only used on

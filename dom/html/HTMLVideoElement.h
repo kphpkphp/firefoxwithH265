@@ -21,6 +21,7 @@ namespace dom {
 class WakeLock;
 class VideoPlaybackQuality;
 
+//HTMLMediaElemet基类是一个极其变态的基类，极为复杂
 class HTMLVideoElement final : public HTMLMediaElement {
   class SecondaryVideoOutput;
 

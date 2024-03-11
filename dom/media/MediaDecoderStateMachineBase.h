@@ -66,6 +66,9 @@ enum class VideoDecodeMode : uint8_t { Normal, Suspend };
  * are propagated by scheduling the state machine to run another cycle on the
  * shared state machine thread.
  */
+
+//状态机，decode task queue中的MediaDecoderReader的解码与视频定位与状态机共享线程中的A/V同步，并且控制音频的push线程
+//所有内部状态通过decoder monitor同步，状态变化通过将state machine设定为在shared state machine thread上执行另一个cycle来传播到所有线程
 class MediaDecoderStateMachineBase {
  public:
   NS_INLINE_DECL_PURE_VIRTUAL_REFCOUNTING
@@ -189,6 +192,7 @@ class MediaDecoderStateMachineBase {
   virtual void UpdateSecondaryVideoContainer() = 0;
 
   // Init tasks which should be done on the task queue.
+  //这是个虚函数，在建立MDSM的时候走的是MDSM的方法
   virtual void InitializationTask(MediaDecoder* aDecoder);
 
   virtual RefPtr<ShutdownPromise> Shutdown() = 0;

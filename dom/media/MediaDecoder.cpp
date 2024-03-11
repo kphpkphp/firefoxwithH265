@@ -551,6 +551,7 @@ nsresult MediaDecoder::CreateAndInitStateMachine(bool aIsLiveStream,
   SetStateMachine(CreateStateMachine(aDisableExternalEngine));
 
   NS_ENSURE_TRUE(GetStateMachine(), NS_ERROR_FAILURE);
+  //这个方法不涉及状态机状态变化，就是设置一个bool值
   GetStateMachine()->DispatchIsLiveStream(aIsLiveStream);
 
   nsresult rv = mDecoderStateMachine->Init(this);
@@ -558,6 +559,7 @@ nsresult MediaDecoder::CreateAndInitStateMachine(bool aIsLiveStream,
 
   // If some parameters got set before the state machine got created,
   // set them now
+  //如果某些参数是在MDSM建立之前就已经有的，此时就将它们设置上
   SetStateMachineParameters();
 
   return NS_OK;

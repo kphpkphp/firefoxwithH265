@@ -1081,6 +1081,8 @@ RefPtr<ShutdownPromise> MediaFormatReader::TearDownDecoders() {
   return mTaskQueue->BeginShutdown();
 }
 
+//初始化
+//获取解码线程
 nsresult MediaFormatReader::Init() {
   MOZ_ASSERT(NS_IsMainThread(), "Must be on main thread.");
 
@@ -1203,6 +1205,7 @@ MediaFormatReader::AsyncReadMetadata() {
 
   if (mInitDone) {
     // We are returning from dormant.
+    // 当前是结束休眠，重新开始播放
     MetadataHolder metadata;
     metadata.mInfo = MakeUnique<MediaInfo>(mInfo);
     return MetadataPromise::CreateAndResolve(std::move(metadata), __func__);

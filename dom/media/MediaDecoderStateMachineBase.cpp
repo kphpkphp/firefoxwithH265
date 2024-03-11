@@ -92,9 +92,12 @@ nsresult MediaDecoderStateMachineBase::Init(MediaDecoder* aDecoder) {
   MOZ_ASSERT(NS_IsMainThread());
 
   // Dispatch initialization that needs to happen on that task queue.
+  // 将initaialization事件发送到task queue中
+  // 这个方法启动事件循环，WatchManager监控状态变换并驱动事件循环进行
   nsCOMPtr<nsIRunnable> r = NewRunnableMethod<RefPtr<MediaDecoder>>(
       "MediaDecoderStateMachineBase::InitializationTask", this,
       &MediaDecoderStateMachineBase::InitializationTask, aDecoder);
+  //发送启动事件
   mTaskQueue->DispatchStateChange(r.forget());
 
   // Connect mirrors.
@@ -105,6 +108,7 @@ nsresult MediaDecoderStateMachineBase::Init(MediaDecoder* aDecoder) {
   aDecoder->CanonicalSecondaryVideoContainer().ConnectMirror(
       &mSecondaryVideoContainer);
 
+  //初始化ReaderProxy
   nsresult rv = mReader->Init();
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -113,11 +117,13 @@ nsresult MediaDecoderStateMachineBase::Init(MediaDecoder* aDecoder) {
   return NS_OK;
 }
 
+//初始化任务
 void MediaDecoderStateMachineBase::InitializationTask(MediaDecoder* aDecoder) {
   MOZ_ASSERT(OnTaskQueue());
 
   // Connect mirrors.
   mBuffered.Connect(mReader->CanonicalBuffered());
+  //设置时间
   mReader->SetCanonicalDuration(mDuration);
 
   // Initialize watchers.

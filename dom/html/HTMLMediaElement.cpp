@@ -3070,16 +3070,18 @@ nsresult HTMLMediaElement::LoadWithChannel(nsIChannel* aChannel,
   mIsRunningLoadMethod = false;
 
   mLoadingSrcTriggeringPrincipal = nullptr;
+  //获取原始URI，异步实现
   nsresult rv = aChannel->GetOriginalURI(getter_AddRefs(mLoadingSrc));
   NS_ENSURE_SUCCESS(rv, rv);
 
   ChangeDelayLoadStatus(true);
+  //初始化解码器，传入视频资源
   rv = InitializeDecoderForChannel(aChannel, aListener);
   if (NS_FAILED(rv)) {
     ChangeDelayLoadStatus(false);
     return rv;
   }
-
+  //控制播放速率
   SetPlaybackRate(mDefaultPlaybackRate, IgnoreErrors());
   DispatchAsyncEvent(u"loadstart"_ns);
 
@@ -4970,6 +4972,7 @@ nsresult HTMLMediaElement::SetupDecoder(DecoderType* aDecoder,
   return rv;
 }
 
+//初始化解码器
 nsresult HTMLMediaElement::InitializeDecoderForChannel(
     nsIChannel* aChannel, nsIStreamListener** aListener) {
   NS_ASSERTION(mLoadingSrc, "mLoadingSrc must already be set");
@@ -4977,6 +4980,7 @@ nsresult HTMLMediaElement::InitializeDecoderForChannel(
 
   DecoderDoctorDiagnostics diagnostics;
 
+  //类型，这里是视频的类型
   nsAutoCString mimeType;
   aChannel->GetContentType(mimeType);
   NS_ASSERTION(!mimeType.IsEmpty(), "We should have the Content-Type.");
@@ -5001,12 +5005,14 @@ nsresult HTMLMediaElement::InitializeDecoderForChannel(
     }
   });
 
+  //容器类型获取
   Maybe<MediaContainerType> containerType = MakeMediaContainerType(mimeType);
   if (!containerType) {
     reportCanPlay(false);
     return NS_ERROR_FAILURE;
   }
 
+  //这好像是在创建一个context？
   MediaDecoderInit decoderInit(
       this, this, mMuted ? 0.0 : mVolume, mPreservesPitch,
       ClampPlaybackRate(mPlaybackRate),
@@ -5024,7 +5030,8 @@ nsresult HTMLMediaElement::InitializeDecoderForChannel(
     return SetupDecoder(decoder.get(), aChannel);
   }
 #endif
-
+  //创建一个ChannelMediaDecoder
+  //用到了上面的decoderInit
   RefPtr<ChannelMediaDecoder> decoder =
       ChannelMediaDecoder::Create(decoderInit, &diagnostics);
   if (!decoder) {
@@ -5034,6 +5041,7 @@ nsresult HTMLMediaElement::InitializeDecoderForChannel(
 
   reportCanPlay(true);
   bool isPrivateBrowsing = NodePrincipal()->GetPrivateBrowsingId() > 0;
+  //启动decoder，将视频资源注册放进去
   return SetupDecoder(decoder.get(), aChannel, isPrivateBrowsing, aListener);
 }
 

@@ -108,6 +108,7 @@ enum class StreamCaptureBehavior : uint8_t {
   FINISH_WHEN_ENDED
 };
 
+//多重继承，真变态
 class HTMLMediaElement : public nsGenericHTMLElement,
                          public MediaDecoderOwner,
                          public PrincipalChangeObserver<MediaStreamTrack>,
@@ -126,6 +127,9 @@ class HTMLMediaElement : public nsGenericHTMLElement,
   // mozCaptureStream(). For each OutputMediaStream, dom::MediaTracks get
   // captured into MediaStreamTracks which get added to
   // OutputMediaStream::mStream.
+
+  //辅助类，保存mozCaptureStream()返回的MediaStreams，对于每个OutputMediaStream，dom::MediaTracks 获取的MediaStreamTracks，添加到OutputMediaStream::mStream
+  //保存tracks用的
   struct OutputMediaStream {
     OutputMediaStream(RefPtr<DOMMediaStream> aStream, bool aCapturingAudioOnly,
                       bool aFinishWhenEnded);
@@ -167,6 +171,8 @@ class HTMLMediaElement : public nsGenericHTMLElement,
   // This is used for event runner creation. Currently only timeupdate needs
   // that, but it can be used to extend for other events in the future if
   // necessary.
+
+  //事件flag
   enum class EventFlag : uint8_t {
     eNone = 0,
     eMandatory = 1,
@@ -180,6 +186,8 @@ class HTMLMediaElement : public nsGenericHTMLElement,
    * @param aListener returns a stream listener that should receive
    * notifications for the stream
    */
+
+  //浏览器创建一个video element来播放一个已经loading的channel时调用这个方法
   nsresult LoadWithChannel(nsIChannel* aChannel, nsIStreamListener** aListener);
 
   // nsISupports
@@ -213,19 +221,23 @@ class HTMLMediaElement : public nsGenericHTMLElement,
   // Called by the video decoder object, on the main thread,
   // when it has read the metadata containing video dimensions,
   // etc.
+  //被video decoder对象调一下，获取metadata
   virtual void MetadataLoaded(const MediaInfo* aInfo,
                               UniquePtr<const MetadataTags> aTags) final;
 
   // Called by the decoder object, on the main thread,
   // when it has read the first frame of the video or audio.
+  //被decoder对象调用，获取第一帧
   void FirstFrameLoaded() final;
 
   // Called by the video decoder object, on the main thread,
   // when the resource has a network error during loading.
+  //被video decoder对象调用
   void NetworkError(const MediaResult& aError) final;
 
   // Called by the video decoder object, on the main thread, when the
   // resource has a decode error during metadata loading or decoding.
+  //当解码出问题时，被video decoder调用
   void DecodeError(const MediaResult& aError) final;
 
   // Called by the decoder object, on the main thread, when the

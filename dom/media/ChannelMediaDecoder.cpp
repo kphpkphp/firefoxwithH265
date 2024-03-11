@@ -263,6 +263,7 @@ nsresult ChannelMediaDecoder::Load(nsIChannel* aChannel,
   MOZ_ASSERT(!mResource);
   MOZ_ASSERT(aStreamListener);
 
+  //资源加载，开始解码
   mResource = BaseMediaResource::Create(mResourceCallback, aChannel,
                                         aIsPrivateBrowsing);
   if (!mResource) {
@@ -388,6 +389,7 @@ void ChannelMediaDecoder::DownloadProgressed() {
 
   GetOwner()->DownloadProgressed();
 
+  //MozPromise是一个jspromise的模仿，用于异步回调的组织执行
   using StatsPromise = MozPromise<MediaStatistics, bool, true>;
   InvokeAsync(GetStateMachine()->OwnerThread(), __func__,
               [playbackStats = mPlaybackStatistics,

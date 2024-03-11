@@ -63,6 +63,8 @@ class Promise : public SupportsWeakPtr {
   // Pass ePropagateUserInteraction for aPropagateUserInteraction if you want
   // the promise resolve handler to be called as if we were handling user
   // input events in case we are currently handling user input events.
+
+  //Promise 是一个JS的实现
   static already_AddRefed<Promise> Create(
       nsIGlobalObject* aGlobal, ErrorResult& aRv,
       PropagateUserInteraction aPropagateUserInteraction =

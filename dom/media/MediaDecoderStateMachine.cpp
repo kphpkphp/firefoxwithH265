@@ -183,6 +183,7 @@ static TimeDuration SuspendBackgroundVideoDelay() {
       StaticPrefs::media_suspend_background_video_delay_ms());
 }
 
+//状态基类
 class MediaDecoderStateMachine::StateObject {
  public:
   virtual ~StateObject() = default;
@@ -242,9 +243,11 @@ class MediaDecoderStateMachine::StateObject {
  protected:
   enum class EventVisibility : int8_t { Observable, Suppressed };
 
+  //Master就是MDSM
   using Master = MediaDecoderStateMachine;
   explicit StateObject(Master* aPtr) : mMaster(aPtr) {}
   TaskQueue* OwnerThread() const { return mMaster->mTaskQueue; }
+  //Reader指向MDSM的ReaderProxy
   ReaderProxy* Reader() const { return mMaster->mReader; }
   const MediaInfo& Info() const { return mMaster->Info(); }
   MediaQueue<AudioData>& AudioQueue() const { return mMaster->mAudioQueue; }
@@ -260,6 +263,7 @@ class MediaDecoderStateMachine::StateObject {
 
   // Note this function will delete the current state object.
   // Don't access members to avoid UAF after this call.
+  // 模板函数，通过这个函数来实现状态的转换
   template <class S, typename... Ts>
   auto SetState(Ts&&... aArgs) -> decltype(ReturnTypeHelper(&S::Enter)) {
     // |aArgs| must be passed by reference to avoid passing MOZ_NON_PARAM class
@@ -319,6 +323,8 @@ class MediaDecoderStateMachine::StateObject {
  *   SHUTDOWN if failing to decode metadata.
  *   DECODING_FIRSTFRAME otherwise.
  */
+//解码视频元数据，如时长和维度
+//变换：如果解码失败，则状态变为SHUTDOWN，否则变为DECODING_FIRSTFRAME
 class MediaDecoderStateMachine::DecodeMetadataState
     : public MediaDecoderStateMachine::StateObject {
  public:
@@ -331,14 +337,18 @@ class MediaDecoderStateMachine::DecodeMetadataState
 
     // We disconnect mMetadataRequest in Exit() so it is fine to capture
     // a raw pointer here.
+    //Reader()方法获取MDSM的ReaderProxy
     Reader()
+        //指向ReaderProxy.ReadMetadata方法
         ->ReadMetadata()
         ->Then(
+          //回调，将Metadata写入aMetadata
             OwnerThread(), __func__,
             [this](MetadataHolder&& aMetadata) {
               OnMetadataRead(std::move(aMetadata));
             },
             [this](const MediaResult& aError) { OnMetadataNotRead(aError); })
+            //Track看来是结束这个promise的方法，mozpromise的介绍里是这么说
         ->Track(mMetadataRequest);
   }
 
@@ -364,6 +374,7 @@ class MediaDecoderStateMachine::DecodeMetadataState
  private:
   void OnMetadataRead(MetadataHolder&& aMetadata);
 
+  //读取失败
   void OnMetadataNotRead(const MediaResult& aError) {
     AUTO_PROFILER_LABEL("DecodeMetadataState::OnMetadataNotRead",
                         MEDIA_PLAYBACK);
@@ -382,6 +393,9 @@ class MediaDecoderStateMachine::DecodeMetadataState
  * Transition to:
  *   SEEKING if any seek request or play state changes to PLAYING.
  */
+//Dormant 是休眠的意思
+//释放decoder资源，以节省资源
+//变换：变成SEEKING或PLAYING
 class MediaDecoderStateMachine::DormantState
     : public MediaDecoderStateMachine::StateObject {
  public:
@@ -470,6 +484,9 @@ class MediaDecoderStateMachine::DormantState
  *   SEEKING if any seek request.
  *   DECODING/LOOPING_DECODING when the 'loadeddata' event is fired.
  */
+
+//开始解码第一帧音频或视频帧
+//变换：如果decode错误，变成SHUTDOWN，如果有seek，变成SEEKING，如果loadeddata事件发出，变成DECODING/LOOPING_DECODING
 class MediaDecoderStateMachine::DecodingFirstFrameState
     : public MediaDecoderStateMachine::StateObject {
  public:
@@ -568,6 +585,10 @@ class MediaDecoderStateMachine::DecodingFirstFrameState
  *   COMPLETED when having decoded all audio/video data.
  *   LOOPING_DECODING when media start seamless looping
  */
+
+//解码音频/视频数据以供播放
+//变换：如果暂停，变成DORMANT,如果有seek请求，变SEEKING，如果deocde报错，变成SHUTDOWN，如果缺少可播放资源，变成BUFFERING，如果解码完了全部资源，变成COMPLETED，如果视频开始
+//无缝循环，变成LOOPING_DECODING，无缝循环指的是媒体一播放完成就马上重新开始播放，让用户感觉不出中断
 class MediaDecoderStateMachine::DecodingState
     : public MediaDecoderStateMachine::StateObject {
  public:
@@ -576,6 +597,8 @@ class MediaDecoderStateMachine::DecodingState
 
   void Enter();
 
+  //不知干什么的，好像是计时？
+  //断开通道popped的监控
   void Exit() override {
     if (!mDecodeStartTime.IsNull()) {
       TimeDuration decodeDuration = TimeStamp::Now() - mDecodeStartTime;
@@ -845,6 +868,9 @@ class MediaDecoderStateMachine::DecodingState
  *             anymore.
  *   DECODING when media stops seamless looping.
  */
+
+//无缝循环状态下，是解码音频而不是视频
+//这个状态会自动调节媒体时间，让时间呈现单调增加
 class MediaDecoderStateMachine::LoopingDecodingState
     : public MediaDecoderStateMachine::DecodingState {
  public:
@@ -1624,6 +1650,8 @@ class MediaDecoderStateMachine::LoopingDecodingState
  *   NextFrameSeekingState if completing a NextFrameSeekingFromDormantState.
  *   DECODING/LOOPING_DECODING otherwise.
  */
+//视频定位，找一个播放的起点
+//变换：变成SEEKING、SHUTDOWN、COMPLETED、NextFrameSeekingState、DECODING/LOOPING_DECODING
 class MediaDecoderStateMachine::SeekingState
     : public MediaDecoderStateMachine::StateObject {
  public:
@@ -2106,6 +2134,8 @@ class MediaDecoderStateMachine::AccurateSeekingState
  * aCompare A function object with the signature bool(int64_t) which returns
  *          true for samples that should be removed.
  */
+
+//将queue中的samples移去
 template <typename Type, typename Function>
 static void DiscardFrames(MediaQueue<Type>& aQueue, const Function& aCompare) {
   while (aQueue.GetSize() > 0) {
@@ -2515,6 +2545,9 @@ MediaDecoderStateMachine::DormantState::HandleSeek(const SeekTarget& aTarget) {
  *   DECODING/LOOPING_DECODING when having decoded enough data to continue
  * playback.
  */
+
+//停止playback，直到有充足的待解码数据
+//变换：变成SEEKING、SHUTDOWN、COMPLETED、DECODING、LOOPING_DECODING
 class MediaDecoderStateMachine::BufferingState
     : public MediaDecoderStateMachine::StateObject {
  public:
@@ -2606,6 +2639,8 @@ class MediaDecoderStateMachine::BufferingState
  *   SEEKING if any seek request.
  *   LOOPING_DECODING if MDSM enable looping.
  */
+//播放所有的已解码视频并发送'ended'事件
+//变换：变成SEEKING或LOOPING_DECODING
 class MediaDecoderStateMachine::CompletedState
     : public MediaDecoderStateMachine::StateObject {
  public:
@@ -2727,6 +2762,7 @@ class MediaDecoderStateMachine::CompletedState
  * Transition from:
  *   Any states other than SHUTDOWN.
  */
+//释放MDSM分配的所有资源
 class MediaDecoderStateMachine::ShutdownState
     : public MediaDecoderStateMachine::StateObject {
  public:
@@ -2884,8 +2920,9 @@ void MediaDecoderStateMachine::StateObject::SetDecodingState() {
 
 void MediaDecoderStateMachine::DecodeMetadataState::OnMetadataRead(
     MetadataHolder&& aMetadata) {
+  //事件完成
   mMetadataRequest.Complete();
-
+  //将事件写入MDSM
   AUTO_PROFILER_LABEL("DecodeMetadataState::OnMetadataRead", MEDIA_PLAYBACK);
   mMaster->mInfo.emplace(*aMetadata.mInfo);
   mMaster->mMediaSeekable = Info().mMediaSeekable;
@@ -2917,6 +2954,7 @@ void MediaDecoderStateMachine::DecodeMetadataState::OnMetadataRead(
 
   MOZ_ASSERT(mMaster->mDuration.Ref().isSome());
 
+  //事件提示
   mMaster->mMetadataLoadedEvent.Notify(std::move(aMetadata.mInfo),
                                        std::move(aMetadata.mTags),
                                        MediaDecoderEventVisibility::Observable);
@@ -2929,6 +2967,8 @@ void MediaDecoderStateMachine::DecodeMetadataState::OnMetadataRead(
     mMaster->mSeamlessLoopingAllowed =
         StaticPrefs::media_seamless_looping_video();
   }
+
+  //设置状态为DecodingFirstFrameState
 
   SetState<DecodingFirstFrameState>();
 }
@@ -3004,7 +3044,7 @@ void MediaDecoderStateMachine::DecodingState::Enter() {
     SetState<CompletedState>();
     return;
   }
-
+  //监视视频与音频解码完成的队列
   mOnAudioPopped =
       AudioQueue().PopFrontEvent().Connect(OwnerThread(), [this]() {
         AUTO_PROFILER_LABEL("MediaDecoderStateMachine::OnAudioPopped",
@@ -3018,6 +3058,7 @@ void MediaDecoderStateMachine::DecodingState::Enter() {
         AUTO_PROFILER_LABEL("MediaDecoderStateMachine::OnVideoPopped",
                             MEDIA_PLAYBACK);
         if (mMaster->IsVideoDecoding() && !mMaster->HaveEnoughDecodedVideo()) {
+          //EnsureVideoDecodeTaskQueued()方法会不断的调用mMaster->requestdecodevideo以进行解码
           EnsureVideoDecodeTaskQueued();
         }
       });
@@ -3103,6 +3144,7 @@ void MediaDecoderStateMachine::DecodingState::EnsureVideoDecodeTaskQueued() {
       mMaster->IsWaitingVideoData()) {
     return;
   }
+  //RequestVideoData将向ReaderProxy请求数据
   mMaster->RequestVideoData(mMaster->GetMediaTime(),
                             ShouldRequestNextKeyFrame());
 }
@@ -3501,7 +3543,7 @@ bool MediaDecoderStateMachine::HaveEnoughDecodedVideo() const {
              GetAmpleVideoFrames() * mPlaybackRate + 1 &&
          IsVideoDataEnoughComparedWithAudio();
 }
-
+//判断视频速度能否跟上音频
 bool MediaDecoderStateMachine::IsVideoDataEnoughComparedWithAudio() const {
   // HW decoding is usually fast enough and we don't need to worry about its
   // speed.
@@ -3509,6 +3551,9 @@ bool MediaDecoderStateMachine::IsVideoDataEnoughComparedWithAudio() const {
   // except VAAPI. When enabling VAAPI on Linux, ffmpeg is not able to store too
   // many frames because it has a limitation of amount of stored video frames.
   // See bug1716638 and 1718309.
+  //如果是硬件解码，一般不用担心速度跟不上音频
+  //我们可以考虑是否在VAAPI之外的其他硬件解码方式上使用这个方法，在Linux上使用VAAPI时，ffmpeg不能存储太多的帧，因为有上限
+
   if (mReader->VideoIsHardwareAccelerated()) {
     return true;
   }
@@ -3576,6 +3621,7 @@ void MediaDecoderStateMachine::SetMediaNotSeekable() { mMediaSeekable = false; }
 nsresult MediaDecoderStateMachine::Init(MediaDecoder* aDecoder) {
   MOZ_ASSERT(NS_IsMainThread());
 
+  //调用基类Init过程
   nsresult rv = MediaDecoderStateMachineBase::Init(aDecoder);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
@@ -3583,12 +3629,14 @@ nsresult MediaDecoderStateMachine::Init(MediaDecoder* aDecoder) {
 
   // Connect mirrors.
   aDecoder->CanonicalStreamName().ConnectMirror(&mStreamName);
+  //只监控音频设备，视频设备不是MDSM直接负责的
   aDecoder->CanonicalSinkDevice().ConnectMirror(&mSinkDevice);
   aDecoder->CanonicalOutputCaptureState().ConnectMirror(&mOutputCaptureState);
   aDecoder->CanonicalOutputDummyTrack().ConnectMirror(&mOutputDummyTrack);
   aDecoder->CanonicalOutputTracks().ConnectMirror(&mOutputTracks);
   aDecoder->CanonicalOutputPrincipal().ConnectMirror(&mOutputPrincipal);
 
+  //监听解码队列状态
   mAudioQueueListener = AudioQueue().PopFrontEvent().Connect(
       mTaskQueue, this, &MediaDecoderStateMachine::OnAudioPopped);
   mVideoQueueListener = VideoQueue().PopFrontEvent().Connect(
@@ -3865,6 +3913,7 @@ void MediaDecoderStateMachine::StopMediaSink() {
   }
 }
 
+//请求音频数据
 void MediaDecoderStateMachine::RequestAudioData() {
   AUTO_PROFILER_LABEL("MediaDecoderStateMachine::RequestAudioData",
                       MEDIA_PLAYBACK);
@@ -3921,6 +3970,7 @@ void MediaDecoderStateMachine::RequestAudioData() {
       ->Track(mAudioDataRequest);
 }
 
+//请求视频数据
 void MediaDecoderStateMachine::RequestVideoData(
     const media::TimeUnit& aCurrentTime, bool aRequestNextKeyFrame) {
   AUTO_PROFILER_LABEL("MediaDecoderStateMachine::RequestVideoData",
@@ -3984,6 +4034,7 @@ void MediaDecoderStateMachine::RequestVideoData(
       ->Track(mVideoDataRequest);
 }
 
+//等待数据
 void MediaDecoderStateMachine::WaitForData(MediaData::Type aType) {
   MOZ_ASSERT(OnTaskQueue());
   MOZ_ASSERT(aType == MediaData::Type::AUDIO_DATA ||
@@ -4087,6 +4138,7 @@ bool MediaDecoderStateMachine::HasLowDecodedVideo() {
              static_cast<size_t>(floorl(LOW_VIDEO_FRAMES * mPlaybackRate));
 }
 
+//已解码数据不足？
 bool MediaDecoderStateMachine::HasLowDecodedData() {
   MOZ_ASSERT(OnTaskQueue());
   MOZ_ASSERT(mReader->UseBufferingHeuristics());
@@ -4161,6 +4213,7 @@ void MediaDecoderStateMachine::EnqueueFirstFrameLoadedEvent() {
                                 visibility);
 }
 
+//第一帧解码完毕
 void MediaDecoderStateMachine::FinishDecodeFirstFrame() {
   MOZ_ASSERT(OnTaskQueue());
   MOZ_ASSERT(!mSentFirstFrameLoadedEvent);
@@ -4172,6 +4225,7 @@ void MediaDecoderStateMachine::FinishDecodeFirstFrame() {
       Duration().ToMicroseconds(), mMediaSeekable);
 
   // Get potentially updated metadata
+  // 获取已经潜在更新的元数据
   mReader->ReadUpdatedMetadata(mInfo.ptr());
 
   EnqueueFirstFrameLoadedEvent();
@@ -4194,6 +4248,7 @@ void MediaDecoderStateMachine::RunStateMachine() {
   mStateObj->Step();
 }
 
+//重置Decode
 void MediaDecoderStateMachine::ResetDecode(const TrackSet& aTracks) {
   MOZ_ASSERT(OnTaskQueue());
   LOG("MediaDecoderStateMachine::Reset");
@@ -4576,7 +4631,7 @@ void MediaDecoderStateMachine::OnMediaSinkAudioError(nsresult aResult) {
   // no sense to play an audio-only file without sound output.
   DecodeError(MediaResult(NS_ERROR_DOM_MEDIA_MEDIASINK_ERR, __func__));
 }
-
+//获取足够的视频帧
 uint32_t MediaDecoderStateMachine::GetAmpleVideoFrames() const {
   MOZ_ASSERT(OnTaskQueue());
   return mReader->VideoIsHardwareAccelerated()
