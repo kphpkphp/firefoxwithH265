@@ -81,6 +81,7 @@ SampleIterator::~SampleIterator() { mIndex->UnregisterIterator(this); }
 bool SampleIterator::HasNext() { return !!Get(); }
 
 already_AddRefed<MediaRawData> SampleIterator::GetNext() {
+  //这是rust方法
   Sample* s(Get());
   if (!s) {
     return nullptr;
@@ -106,6 +107,7 @@ already_AddRefed<MediaRawData> SampleIterator::GetNext() {
     return nullptr;
   }
 
+  //这好像是检查这个帧是不是正确
   size_t bytesRead;
   if (!mIndex->mSource->ReadAt(sample->mOffset, writer->Data(), sample->Size(),
                                &bytesRead) ||

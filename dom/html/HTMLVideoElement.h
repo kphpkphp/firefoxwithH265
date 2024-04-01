@@ -174,6 +174,7 @@ class HTMLVideoElement final : public HTMLMediaElement {
   //
   // Please don't set this to non-nullptr values directly - use
   // SetVisualCloneTarget() instead.
+  //将正在播放的帧克隆到另一个video element里（大概是用于小窗播放功能）
   RefPtr<HTMLVideoElement> mVisualCloneTarget;
   // Set when mVisualCloneTarget is set, and resolved (and unset) when the
   // secondary container has been applied to the underlying resource.

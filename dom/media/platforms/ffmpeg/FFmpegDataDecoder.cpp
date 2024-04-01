@@ -166,6 +166,8 @@ FFmpegDataDecoder<LIBAV_VER>::ProcessDecode(MediaRawData* aSample) {
   return DecodePromise::CreateAndResolve(std::move(results), __func__);
 }
 
+//这里不太对头，看来这里基类的方法先被调用，之后派生类的方法还会被调用
+//这里看来是同名的两个方法，基类先调用自己的方法，之后再用同名的方法调用派生类的方法
 MediaResult FFmpegDataDecoder<LIBAV_VER>::DoDecode(
     MediaRawData* aSample, bool* aGotFrame,
     MediaDataDecoder::DecodedData& aResults) {
@@ -183,6 +185,7 @@ MediaResult FFmpegDataDecoder<LIBAV_VER>::DoDecode(
     while (inputSize) {
       uint8_t* data = inputData;
       int size = inputSize;
+      //这里看来就是底层实际调用的方法了
       int len = mLib->av_parser_parse2(
           mCodecParser, mCodecContext, &data, &size, inputData, inputSize,
           aSample->mTime.ToMicroseconds(), aSample->mTimecode.ToMicroseconds(),

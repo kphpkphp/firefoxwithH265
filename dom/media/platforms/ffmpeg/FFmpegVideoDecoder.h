@@ -37,6 +37,7 @@ DDLoggedTypeNameAndBase(FFmpegVideoDecoder<LIBAV_VER>,
                         FFmpegDataDecoder<LIBAV_VER>);
 
 template <>
+//FFmpegDataDecoder::Decode本身是个不纯的虚函数，这里又重新实现了一遍
 class FFmpegVideoDecoder<LIBAV_VER>
     : public FFmpegDataDecoder<LIBAV_VER>,
       public DecoderDoctorLifeLogger<FFmpegVideoDecoder<LIBAV_VER>> {

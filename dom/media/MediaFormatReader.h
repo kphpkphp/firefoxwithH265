@@ -261,6 +261,7 @@ class MediaFormatReader final
 
   bool InitDemuxer();
   // Notify the track demuxers that new data has been received.
+  // 通知track demuxers，新的数据来了
   void NotifyTrackDemuxers();
   void ReturnOutput(MediaData* aData, TrackType aTrack);
 
@@ -272,11 +273,14 @@ class MediaFormatReader final
   // Returns true if no more action is required.
   bool UpdateReceivedNewData(TrackType aTrack);
   // Called when new samples need to be demuxed.
+  // 当新的数据需要被demux的时候，调用这个方法
   void RequestDemuxSamples(TrackType aTrack);
   // Handle demuxed samples by the input behavior.
+  //处理解封装后的数据
   void HandleDemuxedSamples(TrackType aTrack,
                             FrameStatistics::AutoNotifyDecoded& aA);
   // Decode any pending already demuxed samples.
+  // 解码任何已经解封装的数据
   void DecodeDemuxedSamples(TrackType aTrack, MediaRawData* aSample);
 
   struct InternalSeekTarget {
@@ -417,6 +421,7 @@ class MediaFormatReader final
     // need to be held when those members are read on the TaskQueue.
     Mutex mMutex MOZ_UNANNOTATED;
     // The platform decoder.
+    // 这个就是实际的解码器了
     RefPtr<MediaDataDecoder> mDecoder;
     nsCString mDescription;
     nsCString mProcessName;

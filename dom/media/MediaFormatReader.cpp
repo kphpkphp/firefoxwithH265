@@ -1241,6 +1241,7 @@ void MediaFormatReader::OnDemuxerInitDone(const MediaResult& aResult) {
   if (videoActive) {
     // We currently only handle the first video track.
     MutexAutoLock lock(mVideo.mMutex);
+    //此处从Demuxer里获取到Demuxer，并赋给实际干活的DecoderData对象
     mVideo.mTrackDemuxer = mDemuxer->GetTrackDemuxer(TrackInfo::kVideoTrack, 0);
 
     if (!mVideo.mTrackDemuxer) {
@@ -1591,17 +1592,30 @@ void MediaFormatReader::OnDemuxFailed(TrackType aTrack,
   }
 }
 
+//
 void MediaFormatReader::DoDemuxVideo() {
   AUTO_PROFILER_LABEL("MediaFormatReader::DoDemuxVideo", MEDIA_PLAYBACK);
+  //获取到samples之后异步用的的promise
   using SamplesPromise = MediaTrackDemuxer::SamplesPromise;
 
   DDLOG(DDLogCategory::Log, "video_demuxing", DDNoValue{});
   PerformanceRecorder<PlaybackStage> perfRecorder(
       MediaStage::RequestDemux,
       mVideo.GetCurrentInfo()->GetAsVideoInfo()->mImage.height);
+
+  //获取一帧？
+  //这个地方可能是实际的demux过程的调用，先看看后面是在干什么
+  //MediaTrackDemuxer类型，GetSamples方法
+  //MediaDataDemuxer.h，这个类是基类，被MP4TrackDemuxer继承
+  //这里是从mVideo的TrackDemuxer那里调方法
+  //DecoderDataWithPromise<VideoData>
+  //VideoData继承MediaData，定义在MediaData.h，VideoData里面存放的是已经解码完成的帧，YCbCr格式
+  //DecoderDataWithPromise的基类DecoderData有mTrackDemuxer成员，也定义在MediaFormatReader.h里
   auto p = mVideo.mTrackDemuxer->GetSamples(1);
 
   RefPtr<MediaFormatReader> self = this;
+
+  //这个是处理一个异常事件？mFirstDemuxedSampleTime是空，说明这个帧不正常？
   if (mVideo.mFirstDemuxedSampleTime.isNothing()) {
     p = p->Then(
         OwnerThread(), __func__,
@@ -1623,6 +1637,7 @@ void MediaFormatReader::DoDemuxVideo() {
         });
   }
 
+  //将数据返回并进行后续操作？
   p->Then(
        OwnerThread(), __func__,
        [self, perfRecorder(std::move(perfRecorder))](
@@ -1742,6 +1757,7 @@ void MediaFormatReader::OnAudioDemuxCompleted(
   ScheduleUpdate(TrackInfo::kAudioTrack);
 }
 
+//aResults是解码完的数据，会被这个方法传输走
 void MediaFormatReader::NotifyNewOutput(
     TrackType aTrack, MediaDataDecoder::DecodedData&& aResults) {
   AUTO_PROFILER_LABEL("MediaFormatReader::NotifyNewOutput", MEDIA_PLAYBACK);
@@ -1818,6 +1834,7 @@ void MediaFormatReader::NotifyNewOutput(
       LOGV("Received new %s sample time:%" PRId64 " duration:%" PRId64,
            TrackTypeToStr(aTrack), sample->mTime.ToMicroseconds(),
            sample->mDuration.ToMicroseconds());
+      //将数据放到mOutput里面
       decoder.mOutput.AppendElement(sample);
       decoder.mNumSamplesOutput++;
       decoder.mNumOfConsecutiveDecodingError = 0;
@@ -1992,11 +2009,13 @@ void MediaFormatReader::RequestDemuxSamples(TrackType aTrack) {
   auto& decoder = GetDecoderData(aTrack);
   MOZ_ASSERT(!decoder.mDemuxRequest.Exists());
 
+  //没有数据
   if (!decoder.mQueuedSamples.IsEmpty()) {
     // No need to demux new samples.
     return;
   }
 
+  //已经播放完毕
   if (decoder.mDemuxEOS) {
     // Nothing left to demux.
     // We do not want to attempt to demux while in waiting for data mode
@@ -2015,6 +2034,11 @@ void MediaFormatReader::RequestDemuxSamples(TrackType aTrack) {
 void MediaFormatReader::DecodeDemuxedSamples(TrackType aTrack,
                                              MediaRawData* aSample) {
   MOZ_ASSERT(OnTaskQueue());
+  //获取decoder吧？
+  //这个方法判断是audio还是video，并返回mVideo或mAudio
+  //DecoderDataWithPromise对象，这个对象实际管着解复用和解码的过程
+  //DecoderDataWithPromise底层的解码器是MediaDataDecoder对象
+  //MediaDataDecoder定义在PlatformDecoderModule.h里面，
   auto& decoder = GetDecoderData(aTrack);
   RefPtr<MediaFormatReader> self = this;
   decoder.mFlushed = false;
@@ -2030,6 +2054,7 @@ void MediaFormatReader::DecodeDemuxedSamples(TrackType aTrack,
           aSample->mDuration.ToMicroseconds(), aSample->mKeyframe ? " kf" : "",
           aSample->mEOS ? " eos" : "");
 
+  //获取高度
   const int32_t height =
       aTrack == TrackInfo::kVideoTrack
           ? decoder.GetCurrentInfo()->GetAsVideoInfo()->mImage.height
@@ -2040,7 +2065,10 @@ void MediaFormatReader::DecodeDemuxedSamples(TrackType aTrack,
   if (aTrack == TrackInfo::kVideoTrack) {
     flag |= VideoIsHardwareAccelerated() ? MediaInfoFlag::HardwareDecoding
                                          : MediaInfoFlag::SoftwareDecoding;
+
+    //视频格式
     const nsCString& mimeType = decoder.GetCurrentInfo()->mMimeType;
+    //记录一个flag，好像是用来写日志的
     if (MP4Decoder::IsH264(mimeType)) {
       flag |= MediaInfoFlag::VIDEO_H264;
     } else if (VPXDecoder::IsVPX(mimeType, VPXDecoder::VP8)) {
@@ -2048,20 +2076,24 @@ void MediaFormatReader::DecodeDemuxedSamples(TrackType aTrack,
     } else if (VPXDecoder::IsVPX(mimeType, VPXDecoder::VP9)) {
       flag |= MediaInfoFlag::VIDEO_VP9;
     }
+    //如果支持AV1?
 #ifdef MOZ_AV1
     else if (AOMDecoder::IsAV1(mimeType)) {
       flag |= MediaInfoFlag::VIDEO_AV1;
     }
 #endif
   }
+  //记录日志？
   PerformanceRecorder<PlaybackStage> perfRecorder(MediaStage::RequestDecode,
                                                   height, flag);
   if (mMediaEngineId && aSample->mCrypto.IsEncrypted()) {
     aSample->mShouldCopyCryptoToRemoteRawData = true;
   }
+
   decoder.mDecoder->Decode(aSample)
       ->Then(
           mTaskQueue, __func__,
+          //aResults就是解码完的数据，这是一个队列
           [self, aTrack, &decoder, perfRecorder(std::move(perfRecorder))](
               MediaDataDecoder::DecodedData&& aResults) mutable {
             perfRecorder.Record();
@@ -2377,6 +2409,7 @@ void MediaFormatReader::Update(TrackType aTrack) {
     decoder.mSizeOfQueue -= 1;
   }
 
+  //这个过程大概是将解码完成的数据传给MDSM
   if (decoder.HasPromise()) {
     needOutput = true;
     if (decoder.mOutput.Length()) {
@@ -2386,6 +2419,7 @@ void MediaFormatReader::Update(TrackType aTrack) {
       decoder.mLastDecodedSampleTime =
           Some(TimeInterval(output->mTime, output->GetEndTime()));
       decoder.mNumSamplesOutputTotal++;
+      //应该就是通过这个方法实现的
       ReturnOutput(output, aTrack);
       // We have a decoded sample ready to be returned.
       if (aTrack == TrackType::kVideoTrack) {
@@ -2658,6 +2692,7 @@ void MediaFormatReader::Update(TrackType aTrack) {
   }
 
   // Demux samples if we don't have some.
+  //进行解封装
   RequestDemuxSamples(aTrack);
 
   HandleDemuxedSamples(aTrack, a);
@@ -2690,6 +2725,7 @@ void MediaFormatReader::ReturnOutput(MediaData* aData, TrackType aTrack) {
   } else if (aTrack == TrackInfo::kVideoTrack) {
     VideoData* videoData = aData->As<VideoData>();
 
+    //这好像是在设置是否播放
     if (videoData->mDisplay != mInfo.mVideo.mDisplay) {
       LOG("change of video display size (%dx%d->%dx%d)",
           mInfo.mVideo.mDisplay.width, mInfo.mVideo.mDisplay.height,
@@ -2699,7 +2735,8 @@ void MediaFormatReader::ReturnOutput(MediaData* aData, TrackType aTrack) {
       mVideo.mWorkingInfo->GetAsVideoInfo()->mDisplay = videoData->mDisplay;
       mWorkingInfoChanged = true;
     }
-
+    //进行某种渲染？
+    //好像是设置颜色深度
     mozilla::gfx::ColorDepth colorDepth = videoData->GetColorDepth();
     if (colorDepth != mInfo.mVideo.mColorDepth) {
       LOG("change of video color depth (enum %u -> enum %u)",

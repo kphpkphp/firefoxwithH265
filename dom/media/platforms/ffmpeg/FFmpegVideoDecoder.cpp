@@ -1046,6 +1046,10 @@ void FFmpegVideoDecoder<LIBAV_VER>::UpdateDecodeTimes(TimeStamp aDecodeStart) {
 #endif
 }
 
+
+//大概前面decode和process过程是用的基类的，这里的DoDecode是自己的
+//DecodedData是个队列，解码完成的结果会被包装成图片放到里面
+//这里的DecodedData不是个专门的类，只是个using而已
 MediaResult FFmpegVideoDecoder<LIBAV_VER>::DoDecode(
     MediaRawData* aSample, uint8_t* aData, int aSize, bool* aGotFrame,
     MediaDataDecoder::DecodedData& aResults) {
@@ -1055,6 +1059,7 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::DoDecode(
 
   TimeStamp decodeStart = TimeStamp::Now();
 
+  //这个地方应该是原始数据
   packet.data = aData;
   packet.size = aSize;
   packet.dts = aSample->mTimecode.ToMicroseconds();

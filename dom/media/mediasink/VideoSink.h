@@ -92,17 +92,20 @@ class VideoSink : public MediaSink {
   // timestamps for the frames; when omitted, aMaxFrames must be 1 and
   // a null timestamp is passed to the VideoFrameContainer.
   // If the VideoQueue is empty, this does nothing.
+  //将videoqueue中的图片放到VideoFrameContainer中，
   void RenderVideoFrames(int32_t aMaxFrames, int64_t aClockTime = 0,
                          const TimeStamp& aClickTimeStamp = TimeStamp());
 
   // Triggered while videosink is started, videosink becomes "playing" status,
   // or VideoQueue event arrived.
+  // 自动更新，将帧更新上去
   void TryUpdateRenderedVideoFrames();
 
   // If we have video, display a video frame if it's time for display has
   // arrived, otherwise sleep until it's time for the next frame. Update the
   // current frame time as appropriate, and trigger ready state update.
   // Called on the shared state machine thread.
+  // 如果我们有视频，则在视频帧的时间正好时，渲染这个帧，要不然就等着，直到下一帧来
   void UpdateRenderedVideoFrames();
   void UpdateRenderedVideoFramesByTimer();
 

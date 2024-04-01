@@ -53,6 +53,7 @@ class FFmpegDataDecoder<LIBAV_VER>
   AVFrame* PrepareFrame();
   MediaResult InitDecoder();
   MediaResult AllocateExtraData();
+  //注意这个不是虚函数，基类的这个方法先执行，之后调派生类的方法
   MediaResult DoDecode(MediaRawData* aSample, bool* aGotFrame,
                        DecodedData& aResults);
 
@@ -75,6 +76,7 @@ class FFmpegDataDecoder<LIBAV_VER>
  private:
   RefPtr<DecodePromise> ProcessDecode(MediaRawData* aSample);
   RefPtr<DecodePromise> ProcessDrain();
+  //注意这个是纯虚，这个是派生类实现的
   virtual MediaResult DoDecode(MediaRawData* aSample, uint8_t* aData, int aSize,
                                bool* aGotFrame,
                                MediaDataDecoder::DecodedData& aOutResults) = 0;

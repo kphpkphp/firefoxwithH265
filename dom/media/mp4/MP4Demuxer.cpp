@@ -42,6 +42,7 @@ DDLoggedTypeDeclNameAndBase(MP4TrackDemuxer, MediaTrackDemuxer);
 
 //MP4TrackDemuxer的构造函数参数包括一个TrackInfo指针，这个指针用于给成员mInfo赋值
 
+//
 class MP4TrackDemuxer : public MediaTrackDemuxer,
                         public DecoderDoctorLifeLogger<MP4TrackDemuxer> {
  public:
@@ -425,19 +426,29 @@ RefPtr<MP4TrackDemuxer::SeekPromise> MP4TrackDemuxer::Seek(
 }
 
 already_AddRefed<MediaRawData> MP4TrackDemuxer::GetNextSample() {
+  //直接调getnext()获取指针
+  //mIterator是SampleIterator类型，定义在MP4/SampleIterator.h
   RefPtr<MediaRawData> sample = mIterator->GetNext();
+  //没获取着
   if (!sample) {
     return nullptr;
   }
+  //获取的是Video数据时
   if (mInfo->GetAsVideoInfo()) {
+    //获取ExtraData
     sample->mExtraData = mInfo->GetAsVideoInfo()->mExtraData;
+    //某种特殊文件格式的形式，或者没有被加密？
     if (mType == kH264 && !sample->mCrypto.IsEncrypted()) {
       H264::FrameType type = H264::GetFrameType(sample);
+      //判断是否I帧
       switch (type) {
         case H264::FrameType::I_FRAME:
+        //fallthrough是C++17的方法，让这个case执行完之后继续执行下一个case
           [[fallthrough]];
+          //调节时间？
         case H264::FrameType::OTHER: {
           bool keyframe = type == H264::FrameType::I_FRAME;
+          //一段编译日志，并且如果当前帧不是I帧，则将当前帧的I帧设置为记录下的I帧，这里只是个检查的过程，实际在GetNext()的时候，已经获取关键帧了
           if (sample->mKeyframe != keyframe) {
             NS_WARNING(nsPrintfCString("Frame incorrectly marked as %skeyframe "
                                        "@ pts:%" PRId64 " dur:%" PRId64
@@ -451,6 +462,7 @@ already_AddRefed<MediaRawData> MP4TrackDemuxer::GetNextSample() {
           }
           break;
         }
+        //无效帧
         case H264::FrameType::INVALID:
           NS_WARNING(nsPrintfCString("Invalid H264 frame @ pts:%" PRId64
                                      " dur:%" PRId64 " dts:%" PRId64,
@@ -482,6 +494,8 @@ already_AddRefed<MediaRawData> MP4TrackDemuxer::GetNextSample() {
   }
 
   // Adjust trimming information if needed.
+  // 获取的是Audio数据时
+  // 会自动精简信息
   if (mInfo->GetAsAudioInfo()) {
     AudioInfo* info = mInfo->GetAsAudioInfo();
     TimeUnit originalPts = sample->mTime;
@@ -519,6 +533,7 @@ already_AddRefed<MediaRawData> MP4TrackDemuxer::GetNextSample() {
     }
   }
 
+  //当TEST模式时，记录日志
   if (MOZ_LOG_TEST(GetDemuxerLog(), LogLevel::Verbose)) {
     bool isAudio = mInfo->GetAsAudioInfo();
     TimeUnit originalStart = TimeUnit::Invalid();
@@ -538,42 +553,59 @@ already_AddRefed<MediaRawData> MP4TrackDemuxer::GetNextSample() {
   return sample.forget();
 }
 
+
+//执行解封装过程
 RefPtr<MP4TrackDemuxer::SamplesPromise> MP4TrackDemuxer::GetSamples(
     int32_t aNumSamples) {
   EnsureUpToDateIndex();
+  //放sample用的容器
   RefPtr<SamplesHolder> samples = new SamplesHolder;
   if (!aNumSamples) {
     return SamplesPromise::CreateAndReject(NS_ERROR_DOM_MEDIA_DEMUXER_ERR,
                                            __func__);
   }
 
+  //这个好像是，如果已经解码成功了一些帧，此时就将这些解码好的数据直接放到samples里面
   if (mQueuedSample) {
     NS_ASSERTION(mQueuedSample->mKeyframe, "mQueuedSample must be a keyframe");
     samples->AppendSample(mQueuedSample);
     mQueuedSample = nullptr;
     aNumSamples--;
   }
+  //一个sample对象
   RefPtr<MediaRawData> sample;
+  //没有获取到足够的sample，并且还有下一帧
+  //GetNextSample()方法在上面有定义
   while (aNumSamples && (sample = GetNextSample())) {
+    //sample不完整？
     if (!sample->Size()) {
       continue;
     }
     MOZ_DIAGNOSTIC_ASSERT(sample->HasValidTime());
+    //放入samples中
     samples->AppendSample(sample);
     aNumSamples--;
   }
 
+  //下面两个方法是在检查samples里的数据是否正常
+  //没有sample了
   if (samples->GetSamples().IsEmpty()) {
     return SamplesPromise::CreateAndReject(NS_ERROR_DOM_MEDIA_END_OF_STREAM,
                                            __func__);
   }
 
+  //没有时间？不知道是什么意思，可能播放完了？
   if (mNextKeyframeTime.isNothing() ||
       samples->GetSamples().LastElement()->mTime >= mNextKeyframeTime.value()) {
     SetNextKeyFrameTime();
   }
+
+
   return SamplesPromise::CreateAndResolve(samples, __func__);
 }
+
+
+
 
 void MP4TrackDemuxer::SetNextKeyFrameTime() {
   mNextKeyframeTime.reset();

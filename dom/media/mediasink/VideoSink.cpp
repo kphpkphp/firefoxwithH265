@@ -433,11 +433,13 @@ void VideoSink::RenderVideoFrames(int32_t aMaxFrames, int64_t aClockTime,
     return;
   }
 
+  //一个容器
   AutoTArray<ImageContainer::NonOwningImage, 16> images;
   TimeStamp lastFrameTime;
   double playbackRate = mAudioSink->PlaybackRate();
   for (uint32_t i = 0; i < frames.Length(); ++i) {
     VideoData* frame = frames[i];
+    //判断是否这个帧已经发送给合成器
     bool wasSent = frame->IsSentToCompositor();
     frame->MarkSentToCompositor();
 
@@ -465,8 +467,10 @@ void VideoSink::RenderVideoFrames(int32_t aMaxFrames, int64_t aClockTime,
     MOZ_ASSERT(!t.IsNull());
     lastFrameTime = t;
 
+    //获取一个img指针？
     ImageContainer::NonOwningImage* img = images.AppendElement();
     img->mTimeStamp = t;
+    //从frame中提取图片并放入容器
     img->mImage = frame->mImage;
     if (mBlankImage) {
       img->mImage = mBlankImage;
@@ -487,6 +491,7 @@ void VideoSink::RenderVideoFrames(int32_t aMaxFrames, int64_t aClockTime,
   }
 
   if (images.Length() > 0) {
+    //进行渲染？
     mContainer->SetCurrentFrames(frames[0]->mDisplay, images);
 
     if (mSecondaryContainer) {

@@ -174,6 +174,9 @@ void VideoFrameContainer::SetCurrentFramesLocked(
   if (aImages.IsEmpty()) {
     mImageContainer->ClearAllImages();
   } else {
+    //这个东西就是gfx里面的了，在gfx::layers::ImageContainer里定义
+    //ImageContainer是gfx渲染层的一个抽象
+    //SetCurrentImages就是将图片传过去，内部怎么渲染就不知道了
     mImageContainer->SetCurrentImages(aImages);
   }
   gfx::IntSize newFrameSize = mImageContainer->GetCurrentSize();

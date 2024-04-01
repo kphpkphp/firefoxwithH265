@@ -252,6 +252,7 @@ typedef AlignedBuffer<int16_t> AlignedShortBuffer;
 typedef AlignedBuffer<AudioDataValue> AlignedAudioBuffer;
 
 // Container that holds media samples.
+// 保存媒体帧
 class MediaData {
  public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaData)
@@ -414,6 +415,7 @@ class PlanarYCbCrImage;
 class VideoInfo;
 
 // Holds a decoded video frame, in YCbCr format. These are queued in the reader.
+//VideoData保存的是已经解码完成的帧，YCbCr格式，在reader中的一个队列里
 class VideoData : public MediaData {
  public:
   typedef gfx::IntRect IntRect;
