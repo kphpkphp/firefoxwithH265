@@ -4223,6 +4223,7 @@ HTMLMediaElement::HTMLMediaElement(
       mMediaControlKeyListener(new MediaControlKeyListener(this)) {
   MOZ_ASSERT(mMainThreadEventTarget);
   MOZ_ASSERT(mAbstractMainThread);
+  //不要在这个构造函数或初始化列表中添加任何调用AddRef的内容，防止子类重写AddRef，这些内容应当放到Init方法中
   // Please don't add anything to this constructor or the initialization
   // list that can cause AddRef to be called. This prevents subclasses
   // from overriding AddRef in a way that works with our refcount

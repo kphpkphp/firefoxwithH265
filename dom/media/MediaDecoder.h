@@ -115,6 +115,27 @@ struct MOZ_STACK_CLASS MediaDecoderInit {
 DDLoggedTypeDeclName(MediaDecoder);
 
 class MediaDecoder : public DecoderDoctorLifeLogger<MediaDecoder> {
+
+
+
+
+  /*
+  
+  public方法：
+  1.播放状态枚举(加载、暂停、播放中、结束、终止)
+  2.初始化
+  3.获取容器类型
+  4.执行Decoder初始化
+  5.终止播放
+  6.通过XPCOM通知终止
+  7.网络错误
+  8.获取当前时间轴
+  9....太多了，包括播放等，
+
+  总之，MediaDecoder是一个虚基类（有纯虚函数），是用于抽象视频具体的播放过程的，包括了视频的当前播放状态、播放、定位、暂停等方法的method、错误的处理、事件的处理等
+  
+  */
+
  public:
   typedef MozPromise<bool /* aIgnored */, bool /* aIgnored */,
                      /* IsExclusive = */ true>

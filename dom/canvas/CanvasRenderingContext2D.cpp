@@ -2340,6 +2340,11 @@ already_AddRefed<CanvasPattern> CanvasRenderingContext2D::CreatePattern(
     SVGImageElement* img = &aSource.GetAsSVGImageElement();
     element = img;
   } else if (aSource.IsHTMLVideoElement()) {
+
+    // printf("#########################################################################\n");
+    // printf("there is canvasRenderingcontext2d.cpp, and will create htmlvideoelement");
+    // printf("#########################################################################\n");
+
     auto& video = aSource.GetAsHTMLVideoElement();
     video.LogVisibility(
         mozilla::dom::HTMLVideoElement::CallerAPI::CREATE_PATTERN);
@@ -5243,6 +5248,11 @@ void CanvasRenderingContext2D::DrawImage(const CanvasImageSource& aImage,
       SVGImageElement* img = &aImage.GetAsSVGImageElement();
       element = img;
     } else {
+
+    // printf("#########################################################################\n");
+    // printf("there is canvasRenderingcontext2d.cpp drawimage(), and will create htmlvideoelement");
+    // printf("#########################################################################\n");
+
       HTMLVideoElement* video = &aImage.GetAsHTMLVideoElement();
       video->LogVisibility(
           mozilla::dom::HTMLVideoElement::CallerAPI::DRAW_IMAGE);

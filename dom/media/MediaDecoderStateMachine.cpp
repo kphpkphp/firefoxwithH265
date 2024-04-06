@@ -3412,6 +3412,8 @@ void MediaDecoderStateMachine::InitializationTask(MediaDecoder* aDecoder) {
                       MEDIA_PLAYBACK);
   MOZ_ASSERT(OnTaskQueue());
 
+  printf("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%进入了 MediaDecoderStateMachine::InitializationTask%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
+
   MediaDecoderStateMachineBase::InitializationTask(aDecoder);
 
   // Initialize watchers.

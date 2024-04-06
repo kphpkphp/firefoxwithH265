@@ -23,6 +23,8 @@ DDLoggedTypeDeclNameAndBase(ChannelMediaDecoder, MediaDecoder);
 class ChannelMediaDecoder
     : public MediaDecoder,
       public DecoderDoctorLifeLogger<ChannelMediaDecoder> {
+  
+  //用于向mediaresource注册，接收通知，并将之返回给mediadecoder
   // Used to register with MediaResource to receive notifications which will
   // be forwarded to MediaDecoder.
   class ResourceCallback : public MediaResourceCallback {
@@ -72,6 +74,20 @@ class ChannelMediaDecoder
   explicit ChannelMediaDecoder(MediaDecoderInit& aInit);
 
   void GetDebugInfo(dom::MediaDecoderDebugInfo& aInfo);
+
+//可以被外部调用的方法：
+//创建
+//关闭
+//是否可clone
+//clone
+//加载
+//添加资源size？
+//存在跨源重定向？
+//可以转换定位？
+//后台加载
+//暂停
+//恢复
+//seek方法在基类MediaDecoder中实现
 
  public:
   // Create a decoder for the given aType. Returns null if we were unable

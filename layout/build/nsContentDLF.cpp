@@ -75,6 +75,8 @@ nsContentDLF::~nsContentDLF() = default;
 
 NS_IMPL_ISUPPORTS(nsContentDLF, nsIDocumentLoaderFactory)
 
+//这个地方看起来像是创建了一个新的对象，里面会调用NS_NewVideoDocument
+//这个方法不知道被谁使用，没有找到调用者
 NS_IMETHODIMP
 nsContentDLF::CreateInstance(const char* aCommand, nsIChannel* aChannel,
                              nsILoadGroup* aLoadGroup,
@@ -153,9 +155,16 @@ nsContentDLF::CreateInstance(const char* aCommand, nsIChannel* aChannel,
           return doc.forget();
         },
         aDocListener, aDocViewer);
+    //需要处理Media类型的？
+    //这个方法的注释是，当MIMEtype以object或在toplevel页面上出现时，并且需要处理，这里就会返回true
   } else if (mozilla::DecoderTraits::ShouldHandleMediaType(
                  contentType.get(),
                  /* DecoderDoctorDiagnostics* */ nullptr)) {
+
+                printf("*********************************************************************");
+                printf("there is on createdocument and new videodocument");
+                printf("*********************************************************************");
+
     rv = CreateDocument(
         aCommand, aChannel, aLoadGroup, aContainer,
         []() -> already_AddRefed<Document> {

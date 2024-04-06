@@ -266,6 +266,8 @@ class SupportChecker {
       auto mimeType = aTrackConfig.GetAsVideoInfo()->mMimeType;
       RefPtr<MediaByteBuffer> extraData =
           aTrackConfig.GetAsVideoInfo()->mExtraData;
+        //这个lambda就是一个checker，看来这个地方只会在DecodeSPSFromExtraData，spsdata.profile_idc为244的时候返回不支持，在其他时候都是支持的
+        //这个DecodeSPSFromExtraData是一个解析的方法看来
       AddToCheckList([mimeType, extraData]() {
         if (MP4Decoder::IsH264(mimeType)) {
           SPSData spsdata;

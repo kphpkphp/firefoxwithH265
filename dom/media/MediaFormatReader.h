@@ -78,6 +78,19 @@ class MediaFormatReader final
   typedef TrackInfo::TrackType TrackType;
   typedef MozPromise<bool, MediaResult, IsExclusive> NotifyDataArrivedPromise;
 
+/*
+public方法与对象
+
+视频轨类型
+元数据Promise
+视频数据promise
+定位promise
+获取video数据
+......
+
+
+
+*/
  public:
   MOZ_DECLARE_REFCOUNTED_TYPENAME(MediaFormatReader)
 

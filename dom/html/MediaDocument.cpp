@@ -108,6 +108,8 @@ const char* const MediaDocument::sFormatNames[4] = {
 
 MediaDocument::MediaDocument()
     : nsHTMLDocument(), mDidInitialDocumentSetup(false) {
+
+
   mCompatMode = eCompatibility_FullStandards;
 }
 MediaDocument::~MediaDocument() = default;

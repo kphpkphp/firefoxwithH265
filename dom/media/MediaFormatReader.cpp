@@ -266,7 +266,7 @@ class MediaFormatReader::DecoderFactory {
 
  private:
   enum class Stage : int8_t { None, WaitForToken, CreateDecoder, WaitForInit };
-
+  //看注释，这里的token似乎是表示允许创建Decoder的一个标志，可能是为了确保异步过程稳定的
   struct Data {
     Data(DecoderData& aOwnerData, TrackType aTrack, TaskQueue* aThread)
         : mOwnerData(aOwnerData),

@@ -94,6 +94,12 @@ void VideoDocument::SetScriptGlobalObject(
 }
 
 nsresult VideoDocument::CreateVideoElement() {
+
+
+                printf("*********************************************************************");
+                printf("there is on CreateVideoElement and will new videodocument");
+                printf("*********************************************************************");
+
   RefPtr<Element> body = GetBodyElement();
   if (!body) {
     NS_WARNING("no body on video document!");
@@ -140,7 +146,14 @@ void VideoDocument::UpdateTitle(nsIChannel* aChannel) {
 
 }  // namespace mozilla::dom
 
+//通过这个方法创建videodocument并调用之？
 nsresult NS_NewVideoDocument(mozilla::dom::Document** aResult) {
+
+
+                printf("*********************************************************************");
+                printf("there is on NS_NewVideoDocument and will new videodocument");
+                printf("*********************************************************************");
+
   auto* doc = new mozilla::dom::VideoDocument();
 
   NS_ADDREF(doc);

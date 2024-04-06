@@ -44,9 +44,46 @@ extern mozilla::LazyLogModule gMediaElementLog;
   MOZ_LOG(gMediaElementLog, LogLevel::Debug, \
           ("HTMLVideoElement=%p, " msg, this, ##__VA_ARGS__))
 
+//NS前缀通常用于表示一些xpcom接口或全局方法，可能用于动态创建HTML元素
+
+
+class HTMLVideoElementFactory {
+public:
+    static HTMLVideoElement* CreateHTMLVideoElement(already_AddRefed<NodeInfo>&& aNodeInfo) {
+        HTMLVideoElement* element = GetFromPool(); // Get object from pool
+        if (!element) {
+            element = new HTMLVideoElement(std::move(aNodeInfo)); // Create new object if pool is empty
+        } else {
+            element->Initialize(std::move(aNodeInfo)); // Initialize object with new info
+        }
+        return element;
+    }
+
+    static void DestroyHTMLVideoElement(HTMLVideoElement* element) {
+        if (element) {
+            element->Destroy(); // Cleanup element if needed
+            ReturnToPool(element); // Return element to pool
+        }
+    }
+
+private:
+    static HTMLVideoElement* GetFromPool() {
+        // Implement object pool logic here
+    }
+
+    static void ReturnToPool(HTMLVideoElement* element) {
+        // Implement object pool logic here
+    }
+};
+
+
+
 nsGenericHTMLElement* NS_NewHTMLVideoElement(
     already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
     mozilla::dom::FromParser aFromParser) {
+                // printf("*********************************************************************");
+                // printf("there is on NS_NewHTMLVideoElement() and will new videodocument\n");
+                // printf("*********************************************************************");
   RefPtr<mozilla::dom::NodeInfo> nodeInfo(aNodeInfo);
   auto* nim = nodeInfo->NodeInfoManager();
   mozilla::dom::HTMLVideoElement* element =
@@ -69,6 +106,11 @@ nsresult HTMLVideoElement::Clone(mozilla::dom::NodeInfo* aNodeInfo,
   if (NS_SUCCEEDED(rv)) {
     kungFuDeathGrip.swap(*aResult);
   }
+
+                // printf("*********************************************************************");
+                // printf("there is on clone() and will new videodocument\n");
+                // printf("*********************************************************************");
+
   return rv;
 }
 
@@ -92,10 +134,15 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(HTMLVideoElement,
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 HTMLVideoElement::HTMLVideoElement(already_AddRefed<NodeInfo>&& aNodeInfo)
+      //关键就是这个，这个东西能不能生成一个空白的，并且在有新东西来时放东西进去，处理完了再变回空白的
     : HTMLMediaElement(std::move(aNodeInfo)),
       mIsOrientationLocked(false),
       mVideoWatchManager(this, mAbstractMainThread) {
   DecoderDoctorLogger::LogConstruction(this);
+  //经测试，这里可以获取到mNodeInfo的地址
+  // printf("################################################################\n");
+  // printf("%d\n",&mNodeInfo);
+  // printf("################################################################\n");
 }
 
 HTMLVideoElement::~HTMLVideoElement() {
