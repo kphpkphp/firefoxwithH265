@@ -355,9 +355,8 @@ void MediaFormatReader::DecoderFactory::RunStage(Data& aData) {
   }
 }
 
-//看看这里？
-//还是难以理解到底是在做什么
-//
+
+//DecoderFactory内部会调用PDMFactory创建解码器
 void MediaFormatReader::DecoderFactory::DoCreateDecoder(Data& aData) {
   //AVC/HEVC都会走到这里
   //printf("\n check if  AVC/HEVC come to here ,there is MediaFormatReader::DecoderFactory::DoCreateDecoder \n");
@@ -460,6 +459,7 @@ void MediaFormatReader::DecoderFactory::DoCreateDecoder(Data& aData) {
       });
 }
 
+//应该就是从这里开始，ScheduleUpdate开始执行
 void MediaFormatReader::DecoderFactory::DoInitDecoder(Data& aData) {
   AUTO_PROFILER_LABEL("DecoderFactory::DoInitDecoder", MEDIA_PLAYBACK);
   auto& ownerData = aData.mOwnerData;
@@ -513,6 +513,8 @@ void MediaFormatReader::DecoderFactory::DoInitDecoder(Data& aData) {
 // via its own dedicated task queue.
 // This ensure that the reader's taskqueue will never blocked while a demuxer
 // is itself blocked attempting to access the MediaCache or the MediaResource.
+
+//DemuxerProxy确保原始的demuxer只能通过task queue访问，由此确保taskqueue不会被阻塞
 class MediaFormatReader::DemuxerProxy {
   using TrackType = TrackInfo::TrackType;
   class Wrapper;
@@ -541,7 +543,7 @@ class MediaFormatReader::DemuxerProxy {
       return ShutdownPromise::CreateAndResolve(true, __func__);
     });
   }
-
+  //初始化demuxer，根据结果的不同调用initdone等函数
   RefPtr<MediaDataDemuxer::InitPromise> Init();
 
   Wrapper* GetTrackDemuxer(TrackType aTrack, uint32_t aTrackNumber) {
@@ -803,6 +805,7 @@ RefPtr<MediaDataDemuxer::InitPromise> MediaFormatReader::DemuxerProxy::Init() {
 
   RefPtr<Data> data = mData;
   RefPtr<TaskQueue> taskQueue = mTaskQueue;
+  //创建一个异步过程，data是一个
   return InvokeAsync(mTaskQueue, __func__,
                      [data, taskQueue]() {
                       //这里也可以用printf输出
@@ -1548,6 +1551,7 @@ RefPtr<MediaFormatReader::VideoDataPromise> MediaFormatReader::RequestVideoData(
   }
 
   RefPtr<VideoDataPromise> p = mVideo.EnsurePromise(__func__);
+  //这里会进行ScheduleUpdate，会调用到update，进而需要处理demuxered数据，进而创建解码器
   ScheduleUpdate(TrackInfo::kVideoTrack);
 
   return p;
@@ -1644,6 +1648,7 @@ void MediaFormatReader::DoDemuxVideo() {
        [self](const MediaResult& aError) { self->OnVideoDemuxFailed(aError); })
       ->Track(mVideo.mDemuxRequest);
 }
+
 
 void MediaFormatReader::OnVideoDemuxCompleted(
     RefPtr<MediaTrackDemuxer::SamplesHolder> aSamples) {
@@ -1910,6 +1915,7 @@ void MediaFormatReader::ScheduleUpdate(TrackType aTrack) {
   }
   LOGV("SchedulingUpdate(%s)", TrackTypeToStr(aTrack));
   decoder.mUpdateScheduled = true;
+  //此处的update()方法调用HandleDemuxedSamples()
   RefPtr<nsIRunnable> task(NewRunnableMethod<TrackType>(
       "MediaFormatReader::Update", this, &MediaFormatReader::Update, aTrack));
   nsresult rv = OwnerThread()->Dispatch(task.forget());
@@ -2017,12 +2023,14 @@ void MediaFormatReader::RequestDemuxSamples(TrackType aTrack) {
 
   LOGV("Requesting extra demux %s", TrackTypeToStr(aTrack));
   if (aTrack == TrackInfo::kVideoTrack) {
+    //这里会调用到Schedule，进而创建解码器
     DoDemuxVideo();
   } else {
     DoDemuxAudio();
   }
 }
-
+//DecodeDemuxedSamples()调用Decoder进行解码
+//此方法被HandleDemuxedSamples调用
 void MediaFormatReader::DecodeDemuxedSamples(TrackType aTrack,
                                              MediaRawData* aSample) {
   MOZ_ASSERT(OnTaskQueue());
@@ -2085,7 +2093,9 @@ void MediaFormatReader::DecodeDemuxedSamples(TrackType aTrack,
           })
       ->Track(decoder.mDecodeRequest);
 }
-
+//HandleDemuxedSamples()调用DecodeDemuxedSamples()
+//并且在没有Decoder的时候，调用mDecoderFactory->CreateDecoder()为每个Track创建Decoder
+//此方法被Update()方法调用
 void MediaFormatReader::HandleDemuxedSamples(
     TrackType aTrack, FrameStatistics::AutoNotifyDecoded& aA) {
   MOZ_ASSERT(OnTaskQueue());
@@ -2100,7 +2110,7 @@ void MediaFormatReader::HandleDemuxedSamples(
   if (decoder.mQueuedSamples.IsEmpty()) {
     return;
   }
-
+  //sample是解封装出来的，将被decode
   RefPtr<MediaRawData> sample = decoder.mQueuedSamples[0];
   const RefPtr<TrackInfoSharedPtr> info = sample->mTrackInfo;
 
@@ -2317,7 +2327,7 @@ void MediaFormatReader::DrainDecoder(TrackType aTrack) {
       ->Track(decoder.mDrainRequest);
   LOG("Requesting %s decoder to drain", TrackTypeToStr(aTrack));
 }
-
+//底层调用HandleDemuxedSamples()
 void MediaFormatReader::Update(TrackType aTrack) {
   AUTO_PROFILER_LABEL("MediaFormatReader::Update", MEDIA_PLAYBACK);
   MOZ_ASSERT(OnTaskQueue());
@@ -2397,6 +2407,7 @@ void MediaFormatReader::Update(TrackType aTrack) {
       decoder.mLastDecodedSampleTime =
           Some(TimeInterval(output->mTime, output->GetEndTime()));
       decoder.mNumSamplesOutputTotal++;
+      //将output输出
       ReturnOutput(output, aTrack);
       // We have a decoded sample ready to be returned.
       if (aTrack == TrackType::kVideoTrack) {
@@ -2673,6 +2684,8 @@ void MediaFormatReader::Update(TrackType aTrack) {
 
   HandleDemuxedSamples(aTrack, a);
 }
+
+//ReturnOutput，这个方法是将结果输出的方法
 
 void MediaFormatReader::ReturnOutput(MediaData* aData, TrackType aTrack) {
   AUTO_PROFILER_LABEL("MediaFormatReader::ReturnOutput", MEDIA_PLAYBACK);

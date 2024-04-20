@@ -1052,7 +1052,7 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitCodecContext() {
     decode_threads = 2;
   }
 //经测试，硬解不会走到这里，软解时AVC、HEVC都会走到这里
-  printf("the decode_threads is %d ",decode_threads);
+  //printf("the decode_threads is %d ",decode_threads);
 
   if (mLowLatency) {
     mCodecContext->flags |= AV_CODEC_FLAG_LOW_DELAY;
@@ -1137,6 +1137,10 @@ void FFmpegVideoDecoder<LIBAV_VER>::UpdateDecodeTimes(TimeStamp aDecodeStart) {
       mDecodedFrames;
   FFMPEG_LOG(
       "Frame decode finished, time %.2f ms averange decode time %.2f ms "
+      "decoded %d frames\n",
+      decodeTime, mAverangeDecodeTime, mDecodedFrames);
+
+  printf("Frame decode finished, time %.2f ms averange decode time %.2f ms "
       "decoded %d frames\n",
       decodeTime, mAverangeDecodeTime, mDecodedFrames);
 #if LIBAVCODEC_VERSION_MAJOR >= 58

@@ -318,6 +318,7 @@ void PDMFactory::EnsureInit() {
   if (PDMInitializer::HasInitializedPDMs()) {
     return;
   }
+  //这是个lambda，不是现在执行的
   auto initalization = []() {
     MOZ_DIAGNOSTIC_ASSERT(NS_IsMainThread());
     if (!PDMInitializer::HasInitializedPDMs()) {
@@ -876,6 +877,7 @@ void PDMFactory::SetCDMProxy(CDMProxy* aProxy) {
 }
 
 /* static */
+//此方法被DecoderTraits的一系列方法调用，用于上层HTMLVideoElement判断是否支持此类型
 media::MediaCodecsSupported PDMFactory::Supported(bool aForceRefresh) {
   MOZ_ASSERT(NS_IsMainThread());
 

@@ -2939,6 +2939,7 @@ void gfxPlatform::InitHardwareVideoConfig() {
   gfxVars::SetUseVP9HwDecode(featureVP9.IsEnabled());
 
   // H264_HW_DECODE/AV1_HW_DECODE is used on Linux only right now.
+  //MOZ_WIDGET_GTK是mozilla实现的在Linux下的窗口形式
 #ifdef MOZ_WIDGET_GTK
 //看看这里是怎么做的
   FeatureState& featureH264 = gfxConfig::GetFeature(Feature::H264_HW_DECODE);

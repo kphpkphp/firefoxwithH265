@@ -161,6 +161,7 @@ CodecDefinition MCSInfo::GetCodecDefinition(const MediaCodec& aCodec) {
   return info;
 }
 
+//这里还没改
 std::array<CodecDefinition, 12> MCSInfo::GetAllCodecDefinitions() {
   static constexpr std::array<CodecDefinition, 12> codecDefinitions = {
       {{MediaCodec::H264, "H264", "video/avc",
