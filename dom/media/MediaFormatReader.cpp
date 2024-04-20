@@ -1536,7 +1536,7 @@ RefPtr<MediaFormatReader::VideoDataPromise> MediaFormatReader::RequestVideoData(
     SkipVideoDemuxToNextKeyFrame(*target);
     return p;
   }
-
+  //当前方法的Promise成功解决
   RefPtr<VideoDataPromise> p = mVideo.EnsurePromise(__func__);
   ScheduleUpdate(TrackInfo::kVideoTrack);
 

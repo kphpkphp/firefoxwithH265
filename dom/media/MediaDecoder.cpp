@@ -559,7 +559,7 @@ nsresult MediaDecoder::CreateAndInitStateMachine(bool aIsLiveStream,
   // If some parameters got set before the state machine got created,
   // set them now
   SetStateMachineParameters();
-
+  //printf("########there is CreateAndInitStateMachine######### ");
   return NS_OK;
 }
 

@@ -1261,6 +1261,7 @@ NS_IMETHODIMP
 HTMLMediaElement::MediaLoadListener::OnStartRequest(nsIRequest* aRequest) {
   nsContentUtils::UnregisterShutdownObserver(this);
 
+  //printf("############################ there is OnStartRequest ###############################");
   if (!mElement) {
     // We've been notified by the shutdown observer, and are shutting down.
     return NS_BINDING_ABORTED;
@@ -2222,6 +2223,11 @@ nsresult HTMLMediaElement::OnChannelRedirect(nsIChannel* aChannel,
 }
 
 void HTMLMediaElement::ShutdownDecoder() {
+
+  // printf("$$$$$$$$$$$$$$$$$$$$$$$ there is ShutdownDecoder $$$$$$$$$$$$$$$$$$$$$$$$$$$");
+
+  // printf("there is ShutdownDecoder and the mDecoder location is % lf ",&(mDecoder));
+
   RemoveMediaElementFromURITable();
   NS_ASSERTION(mDecoder, "Must have decoder to shut down");
 
@@ -2611,6 +2617,7 @@ void HTMLMediaElement::SelectResource() {
       ReportLoadError("MediaLoadInvalidURI", params);
       rv = MediaResult(rv.Code(), "MediaLoadInvalidURI");
     }
+    //printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!there is SelectResource and load is fall!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
     // The media element has neither a src attribute nor a source element child:
     // set the networkState to NETWORK_EMPTY, and abort these steps; the
     // synchronous section ends.
@@ -3001,6 +3008,9 @@ MediaResult HTMLMediaElement::LoadResource() {
   NS_ASSERTION(mDelayingLoadEvent,
                "Should delay load event (if in document) during load");
 
+
+   //printf("#################################### there is loadResource %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
+
   if (mChannelLoader) {
     mChannelLoader->Cancel();
     mChannelLoader = nullptr;
@@ -3010,6 +3020,7 @@ MediaResult HTMLMediaElement::LoadResource() {
   mCORSMode = AttrValueToCORSMode(GetParsedAttr(nsGkAtoms::crossorigin));
 
   HTMLMediaElement* other = LookupMediaElementURITable(mLoadingSrc);
+  //不对头，这个地方可能实现了解码器的复用过程
   if (other && other->mDecoder) {
     // Clone it.
     // TODO: remove the cast by storing ChannelMediaDecoder in the URI table.
@@ -3019,6 +3030,9 @@ MediaResult HTMLMediaElement::LoadResource() {
   }
 
   if (mMediaSource) {
+
+    //printf("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$,there is LoadResource() and have mMediaSource");
+
     MediaDecoderInit decoderInit(
         this, this, mMuted ? 0.0 : mVolume, mPreservesPitch,
         ClampPlaybackRate(mPlaybackRate),
@@ -3027,11 +3041,13 @@ MediaResult HTMLMediaElement::LoadResource() {
         MediaContainerType(MEDIAMIMETYPE("application/x.mediasource")));
 
     RefPtr<MediaSourceDecoder> decoder = new MediaSourceDecoder(decoderInit);
+
     if (!mMediaSource->Attach(decoder)) {
       // TODO: Handle failure: run "If the media data cannot be fetched at
       // all, due to network errors, causing the user agent to give up
       // trying to fetch the resource" section of resource fetch algorithm.
       decoder->Shutdown();
+      //printf("there is LoadResource and is shutdowning the mDecoder location is % lf ",&(mDecoder));
       return MediaResult(NS_ERROR_FAILURE, "Failed to attach MediaSource");
     }
     ChangeDelayLoadStatus(false);
@@ -3043,6 +3059,8 @@ MediaResult HTMLMediaElement::LoadResource() {
       return MediaResult(rv, "Fail to load decoder");
     }
     rv = FinishDecoderSetup(decoder);
+    //printf("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$sfsfsd");
+    //printf("there is LoadResource and  the mDecoder location is % lf ",&(mDecoder));
     return MediaResult(rv, "Failed to set up decoder");
   }
 
@@ -3058,6 +3076,9 @@ MediaResult HTMLMediaElement::LoadResource() {
 
 nsresult HTMLMediaElement::LoadWithChannel(nsIChannel* aChannel,
                                            nsIStreamListener** aListener) {
+
+
+  //printf("#################################### there is loadwithchannel %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
   NS_ENSURE_ARG_POINTER(aChannel);
   NS_ENSURE_ARG_POINTER(aListener);
 
@@ -4967,7 +4988,7 @@ nsresult HTMLMediaElement::SetupDecoder(DecoderType* aDecoder,
         MediaElementTableCount(this, mLoadingSrc) == 1,
         "Media element should have single table entry if decode initialized");
   }
-
+  //printf("********************** there is SetupDecoder and that for channelmediaDecoder *********************");
   return rv;
 }
 
@@ -5026,6 +5047,7 @@ nsresult HTMLMediaElement::InitializeDecoderForChannel(
   }
 #endif
 
+  //printf("############################### there is InitaializeDecoderForChannel");
   RefPtr<ChannelMediaDecoder> decoder =
       ChannelMediaDecoder::Create(decoderInit, &diagnostics);
   if (!decoder) {

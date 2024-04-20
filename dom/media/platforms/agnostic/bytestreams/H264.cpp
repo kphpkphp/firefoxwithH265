@@ -927,6 +927,8 @@ uint32_t H264::ComputeMaxRefFrames(const mozilla::MediaByteBuffer* aExtraData) {
   // Retrieve video dimensions from H264 SPS NAL.
   SPSData spsdata;
   if (DecodeSPSFromExtraData(aExtraData, spsdata)) {
+    //max_num_ref_frames表示可能被帧间解码过程使用的短期、长期参考帧、互补参考场对以及普通的参考场的最大数量；另外这个参数还决定了8.2.5.3条款描述中的滑动窗口的大小
+    //在这里，需要排这么多帧，以表示合适的PTS顺序，最少4个
     // max_num_ref_frames determines the size of the sliding window
     // we need to queue that many frames in order to guarantee proper
     // pts frames ordering. Use a minimum of 4 to ensure proper playback of

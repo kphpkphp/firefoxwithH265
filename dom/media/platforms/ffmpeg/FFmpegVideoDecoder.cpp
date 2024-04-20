@@ -13,9 +13,12 @@
 #include "VideoUtils.h"
 #include "VPXDecoder.h"
 #include "mozilla/layers/KnowsCompositor.h"
+//这是某种纹理渲染相关的东西？
 #if LIBAVCODEC_VERSION_MAJOR >= 57
 #  include "mozilla/layers/TextureClient.h"
 #endif
+//这个地方是做什么的？为什么只有在58以上才会引入这个？
+//这好像是个性能分析器
 #if LIBAVCODEC_VERSION_MAJOR >= 58
 #  include "mozilla/ProfilerMarkers.h"
 #endif
@@ -62,6 +65,7 @@
 #  include "mozilla/gfx/gfxVars.h"
 #endif
 
+//某些VAAPI的值
 // Forward declare from va.h
 #ifdef MOZ_WAYLAND_USE_HWDECODE
 typedef int VAStatus;
@@ -69,6 +73,8 @@ typedef int VAStatus;
 #  define VA_EXPORT_SURFACE_SEPARATE_LAYERS 0x0004
 #  define VA_STATUS_SUCCESS 0x00000000
 #endif
+
+//软解/硬解切换的一些参数
 // Use some extra HW frames for potential rendering lags.
 #define EXTRA_HW_FRAMES 6
 // Defines number of delayed frames until we switch back to SW decode.
@@ -85,6 +91,7 @@ typedef mozilla::layers::PlanarYCbCrImage PlanarYCbCrImage;
 
 namespace mozilla {
 
+//这看来是储存VAAPI解码之后数据的某种队列
 #ifdef MOZ_WAYLAND_USE_HWDECODE
 nsTArray<AVCodecID> FFmpegVideoDecoder<LIBAV_VER>::mAcceleratedFormats;
 #endif
@@ -97,6 +104,8 @@ using media::TimeUnit;
  * For now, we just look for YUV420P, YUVJ420P and YUV444 as those are the only
  * only non-HW accelerated format supported by FFmpeg's H264 and VP9 decoder.
  */
+
+/*FFmpeg将使用它支持的格式，来调用这个回调，当前，我们仅仅关注YUV420P、YUVJ420P和YUV444，因为它们是被FFmpeg的H264和VP9解码器支持，但不支持硬解的*/
 static AVPixelFormat ChoosePixelFormat(AVCodecContext* aCodecContext,
                                        const AVPixelFormat* aFormats) {
   FFMPEG_LOG("Choosing FFmpeg pixel format for video decoding.");
@@ -146,9 +155,12 @@ static AVPixelFormat ChoosePixelFormat(AVCodecContext* aCodecContext,
   return AV_PIX_FMT_NONE;
 }
 
+//硬解时
+//这些方法看来都是在判断像素格式、编码格式是否能被VAAPI支持
 #ifdef MOZ_WAYLAND_USE_HWDECODE
 static AVPixelFormat ChooseVAAPIPixelFormat(AVCodecContext* aCodecContext,
                                             const AVPixelFormat* aFormats) {
+  //这里会挑选format
   FFMPEG_LOG("Choosing FFmpeg pixel format for VA-API video decoding.");
   for (; *aFormats > -1; aFormats++) {
     switch (*aFormats) {
@@ -200,6 +212,7 @@ AVCodec* FFmpegVideoDecoder<LIBAV_VER>::FindVAAPICodec() {
   return nullptr;
 }
 
+//某种存储解码后帧的东西？
 template <int V>
 class VAAPIDisplayHolder {};
 
@@ -228,6 +241,7 @@ static void VAAPIDisplayReleaseCallback(struct AVHWDeviceContext* hwctx) {
   delete displayHolder;
 }
 
+//创建VAAPI设备上下文
 bool FFmpegVideoDecoder<LIBAV_VER>::CreateVAAPIDeviceContext() {
   mVAAPIDeviceContext = mLib->av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_VAAPI);
   if (!mVAAPIDeviceContext) {
@@ -248,6 +262,7 @@ bool FFmpegVideoDecoder<LIBAV_VER>::CreateVAAPIDeviceContext() {
     return false;
   }
 
+  //这似乎是在创建存储器和析构函数
   hwctx->user_opaque = new VAAPIDisplayHolder<LIBAV_VER>(mLib, mDisplay, drmFd);
   hwctx->free = VAAPIDisplayReleaseCallback;
 
@@ -274,6 +289,7 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::InitVAAPIDecoder() {
 
   StaticMutexAutoLock mon(sMutex);
 
+  //确认是否能进行解码
   // mAcceleratedFormats is already configured so check supported
   // formats before we do anything.
   if (mAcceleratedFormats.Length()) {
@@ -286,12 +302,14 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::InitVAAPIDecoder() {
                  mLib->avcodec_get_name(mCodecID));
     }
   }
-
+  //确认VAAPI是否可用
   if (!mLib->IsVAAPIAvailable()) {
     FFMPEG_LOG("  libva library or symbols are missing.");
     return NS_ERROR_NOT_AVAILABLE;
   }
-
+  //AVCodec,是FFmpeg里存放解码器信息的结构体
+  //这个东西控制解码过程，每个AVCodec对应一个解码器
+  //这个方法返回FFmpeg内部的解码工具
   AVCodec* codec = FindVAAPICodec();
   if (!codec) {
     FFMPEG_LOG("  couldn't find ffmpeg VA-API decoder");
@@ -315,7 +333,7 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::InitVAAPIDecoder() {
       mLib->av_freep(&mCodecContext);
     }
   });
-
+  //创建解码上下文
   if (!CreateVAAPIDeviceContext()) {
     mLib->av_freep(&mCodecContext);
     FFMPEG_LOG("  Failed to create VA-API device context");
@@ -328,7 +346,7 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::InitVAAPIDecoder() {
     mLib->av_freep(&mCodecContext);
     return ret;
   }
-
+  //这个是初始化过程
   if (mLib->avcodec_open2(mCodecContext, codec, nullptr) < 0) {
     mLib->av_buffer_unref(&mVAAPIDeviceContext);
     mLib->av_freep(&mCodecContext);
@@ -353,7 +371,9 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::InitVAAPIDecoder() {
   releaseVAAPIdecoder.release();
   return NS_OK;
 }
-
+//V4L2是一种格式吧？
+//V4L2是linux中对视频设备，如摄像头的一种抽象，不知道在这里是做什么的，可能是硬解也需要这个接口？
+//感觉这个地方，V4L2应该不是和硬解有关系，应该就是和摄像头有关系的，查到的资料，V4L2不像是一种用于解码的东西，不过听说有些显卡支持使用V4L2管理？
 MediaResult FFmpegVideoDecoder<LIBAV_VER>::InitV4L2Decoder() {
   FFMPEG_LOG("Initialising V4L2-DRM FFmpeg decoder");
 
@@ -374,6 +394,9 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::InitV4L2Decoder() {
     // Select the appropriate v4l2 codec
   //v412是Linux下的一种编解码器，管理UVC设备用的
   //UVC设备是USB摄像头、视频摄像头等，UVC是控制这些设备的一种协议
+  //这个地方可能是用于解码摄像头之类的设备的？
+  //可能是将设备的输出直接接到FFmpeg吧
+  
   AVCodec* codec = nullptr;
   if (mCodecID == AV_CODEC_ID_H264) {
     codec = mLib->avcodec_find_decoder_by_name("h264_v4l2m2m");
@@ -445,6 +468,8 @@ FFmpegVideoDecoder<LIBAV_VER>::PtsCorrectionContext::PtsCorrectionContext()
       mLastPts(INT64_MIN),
       mLastDts(INT64_MIN) {}
 
+//这个地方可能是对PTS(显示时间戳)的一种预测算法
+//这个地方可能有改进空间，看看吧
 int64_t FFmpegVideoDecoder<LIBAV_VER>::PtsCorrectionContext::GuessCorrectPts(
     int64_t aPts, int64_t aDts) {
   int64_t pts = AV_NOPTS_VALUE;
@@ -466,6 +491,7 @@ int64_t FFmpegVideoDecoder<LIBAV_VER>::PtsCorrectionContext::GuessCorrectPts(
   return pts;
 }
 
+//重新设置pts?
 void FFmpegVideoDecoder<LIBAV_VER>::PtsCorrectionContext::Reset() {
   mNumFaultyPts = 0;
   mNumFaultyDts = 0;
@@ -481,6 +507,7 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitHWDecodingPrefs() {
   }
 
   bool supported = false;
+  //判断视频编码形式，但是显然我们的不属于这几种
   switch (mCodecID) {
     case AV_CODEC_ID_H264:
         //定义在/gfx/config/gfxVars.h
@@ -501,12 +528,13 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitHWDecodingPrefs() {
     default:
       break;
   }
+  //HEVC会直接穿过这些地方
   if (!supported) {
     mEnableHardwareDecoding = false;
     FFMPEG_LOG("Codec %s is not accelerated", mLib->avcodec_get_name(mCodecID));
     return;
   }
-
+  //是否启用硬件进行渲染
   bool isHardwareWebRenderUsed = mImageAllocator &&
                                  (mImageAllocator->GetCompositorBackendType() ==
                                   layers::LayersBackend::LAYERS_WR) &&
@@ -523,6 +551,7 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitHWDecodingPrefs() {
 }
 #endif
 
+//创建视频解码器
 FFmpegVideoDecoder<LIBAV_VER>::FFmpegVideoDecoder(
     FFmpegLibWrapper* aLib, const VideoInfo& aConfig,
     KnowsCompositor* aAllocator, ImageContainer* aImageContainer,
@@ -530,6 +559,7 @@ FFmpegVideoDecoder<LIBAV_VER>::FFmpegVideoDecoder(
     Maybe<TrackingId> aTrackingId)
     : FFmpegDataDecoder(aLib, GetCodecId(aConfig.mMimeType)),
     //注意，这里有个是否开启硬件解码的宏
+    //VAAPI相关上下文、是否使用V4L2、是否激活硬解
 #ifdef MOZ_WAYLAND_USE_HWDECODE
       mVAAPIDeviceContext(nullptr),
       mUsingV4L2(false),
@@ -540,6 +570,7 @@ FFmpegVideoDecoder<LIBAV_VER>::FFmpegVideoDecoder(
       mImageContainer(aImageContainer),
       mInfo(aConfig),
       mDecodedFrames(0),
+//这两个东西似乎是用来判断硬解是不是不起作用的
 #if LIBAVCODEC_VERSION_MAJOR >= 58
       mDecodedFramesLate(0),
       mMissedDecodeInAverangeTime(0),
@@ -580,6 +611,7 @@ FFmpegVideoDecoder<LIBAV_VER>::FFmpegVideoDecoder(
     
   // Use a new MediaByteBuffer as the object will be modified during
   // initialization.
+  //某种额外数据
   mExtraData = new MediaByteBuffer;
   mExtraData->AppendElements(*aConfig.mExtraData);
 #ifdef MOZ_WAYLAND_USE_HWDECODE
@@ -594,9 +626,12 @@ FFmpegVideoDecoder<LIBAV_VER>::~FFmpegVideoDecoder() {
 #endif
 }
 
+//初始化
+//V4L2是用来在VAAPI不管用的时候起作用的
 RefPtr<MediaDataDecoder::InitPromise> FFmpegVideoDecoder<LIBAV_VER>::Init() {
   MediaResult rv;
 
+//具体执行上面那些初始化过程
 #ifdef MOZ_WAYLAND_USE_HWDECODE
   if (mEnableHardwareDecoding) {
 #  ifdef MOZ_ENABLE_VAAPI
@@ -606,6 +641,7 @@ RefPtr<MediaDataDecoder::InitPromise> FFmpegVideoDecoder<LIBAV_VER>::Init() {
     }
 #  endif  // MOZ_ENABLE_VAAPI
 
+//明白了，原来V4L2是用来在VAAPI不管用的时候起作用的
 #  ifdef MOZ_ENABLE_V4L2
     // VAAPI didn't work or is disabled, so try V4L2 with DRM
     rv = InitV4L2Decoder();
@@ -626,11 +662,13 @@ RefPtr<MediaDataDecoder::InitPromise> FFmpegVideoDecoder<LIBAV_VER>::Init() {
   return InitPromise::CreateAndReject(rv, __func__);
 }
 
+//获取色彩范围
 static gfx::ColorRange GetColorRange(enum AVColorRange& aColorRange) {
   return aColorRange == AVCOL_RANGE_JPEG ? gfx::ColorRange::FULL
                                          : gfx::ColorRange::LIMITED;
 }
 
+//深度
 static gfx::ColorDepth GetColorDepth(const AVPixelFormat& aFormat) {
   switch (aFormat) {
     case AV_PIX_FMT_YUV420P:
@@ -658,6 +696,7 @@ static bool IsYUVFormat(const AVPixelFormat& aFormat) {
   return aFormat != AV_PIX_FMT_GBRP;
 }
 
+//将AV色彩空间转为普通色彩空间？
 static gfx::YUVColorSpace TransferAVColorSpaceToColorSpace(
     const AVColorSpace aSpace, const AVPixelFormat aFormat,
     const gfx::IntSize& aSize) {
@@ -680,6 +719,8 @@ static gfx::YUVColorSpace TransferAVColorSpaceToColorSpace(
   }
 }
 
+//这可能是一种内存分配策略
+//显然这个地方不好改的动
 #ifdef CUSTOMIZED_BUFFER_ALLOCATION
 static int GetVideoBufferWrapper(struct AVCodecContext* aCodecContext,
                                  AVFrame* aFrame, int aFlags) {
@@ -698,6 +739,7 @@ static void ReleaseVideoBufferWrapper(void* opaque, uint8_t* data) {
   }
 }
 
+//只有YUV420P, YUVJ420P and YUV444  支持使用这种策略，这些是只能被软解的
 static bool IsColorFormatSupportedForUsingCustomizedBuffer(
     const AVPixelFormat& aFormat) {
 #  if XP_WIN
@@ -721,6 +763,7 @@ static bool IsYUV420Sampling(const AVPixelFormat& aFormat) {
          aFormat == AV_PIX_FMT_YUV420P10LE || aFormat == AV_PIX_FMT_YUV420P12LE;
 }
 
+//分配一个纹理client?
 layers::TextureClient*
 FFmpegVideoDecoder<LIBAV_VER>::AllocateTextureClientForImage(
     struct AVCodecContext* aCodecContext, PlanarYCbCrImage* aImage) {
@@ -806,6 +849,7 @@ FFmpegVideoDecoder<LIBAV_VER>::AllocateTextureClientForImage(
   return aImage->GetTextureClient(mImageAllocator);
 }
 
+//获取视频buffer
 int FFmpegVideoDecoder<LIBAV_VER>::GetVideoBuffer(
     struct AVCodecContext* aCodecContext, AVFrame* aFrame, int aFlags) {
   FFMPEG_LOGV("GetVideoBuffer: aCodecContext=%p aFrame=%p", aCodecContext,
@@ -826,6 +870,8 @@ int FFmpegVideoDecoder<LIBAV_VER>::GetVideoBuffer(
   // Pre-allocation is only for sw decoding. During decoding, ffmpeg decoder
   // will need to reference decoded frames, if those frames are on shmem buffer,
   // then it would cause a need to read CPU data from GPU, which is slow.
+
+  //预分配只能被软解支持，在解码时，ffmpeg解码器会引用解码后的帧，如果这些帧在shmem buffer中，就将导致从GPU中读取数据，而这是慢的
   if (IsHardwareAccelerated()) {
     return AVERROR(EINVAL);
   }
@@ -913,6 +959,7 @@ int FFmpegVideoDecoder<LIBAV_VER>::GetVideoBuffer(
 
   // This will hold a reference to image, and the reference would be dropped
   // when ffmpeg tells us that the buffer is no longer needed.
+  //这里存储图片的引用，如果ffmpeg不再需要这些图片，那么它们将被抛弃
   auto imageWrapper = MakeRefPtr<ImageBufferWrapper>(image.get(), this);
   aFrame->buf[0] =
       mLib->av_buffer_create(aFrame->data[0], dataSize.value(),
@@ -938,6 +985,8 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitCodecContext() {
   // We use the same logic as libvpx in determining the number of threads to use
   // so that we end up behaving in the same fashion when using ffmpeg as
   // we would otherwise cause various crashes (see bug 1236167)
+  //决定要使用几个线程解码
+  //这个地方是不是可以考虑优化？但是，上面也说了，如果不用这个策略，可能会莫名其妙的错误
   int decode_threads = 1;
   if (mInfo.mDisplay.width >= 2048) {
     decode_threads = 8;
@@ -946,7 +995,8 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitCodecContext() {
   } else if (mInfo.mDisplay.width >= 320) {
     decode_threads = 2;
   }
-
+  //某种调整策略？
+  //好像支持SLICE和FRAME两种读取方式
   if (mLowLatency) {
     mCodecContext->flags |= AV_CODEC_FLAG_LOW_DELAY;
     // ffvp9 and ffvp8 at this stage do not support slice threading, but it may
@@ -962,6 +1012,7 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitCodecContext() {
   }
 
   // FFmpeg will call back to this to negotiate a video pixel format.
+  //获取视频像素格式
   mCodecContext->get_format = ChoosePixelFormat;
 #ifdef CUSTOMIZED_BUFFER_ALLOCATION
   FFMPEG_LOG("Set get_buffer2 for customized buffer allocation");
@@ -973,6 +1024,7 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitCodecContext() {
 #endif
 }
 
+//获取编码名？
 nsCString FFmpegVideoDecoder<LIBAV_VER>::GetCodecName() const {
 #if LIBAVCODEC_VERSION_MAJOR > 53
   return nsCString(mLib->avcodec_descriptor_get(mCodecID)->name);
@@ -987,6 +1039,7 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitHWCodecContext(bool aUsingV4L2) {
   mCodecContext->height = mInfo.mImage.height;
   mCodecContext->thread_count = 1;
 
+  //根据使用V4L2或VAAPI，获取不同的格式
   if (aUsingV4L2) {
     mCodecContext->get_format = ChooseV4L2PixelFormat;
   } else {
@@ -994,7 +1047,11 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitHWCodecContext(bool aUsingV4L2) {
   }
   //硬件加速需要额外的信息吗？
   if (mCodecID == AV_CODEC_ID_H264) {
+    //这个地方获取的是
     mCodecContext->extra_hw_frames =
+        //max_num_ref_frames表示可能被帧间解码过程使用的短期、长期参考帧、互补参考场对以及普通的参考场的最大数量；另外这个参数还决定了8.2.5.3条款描述中的滑动窗口的大小
+        //在这里，需要排这么多帧，以表示合适的PTS顺序，最少4个
+        //这个地方大概获取的是需要排队的帧数，这里应该是可以改的
         H264::ComputeMaxRefFrames(mInfo.mExtraData);
   } else {
     mCodecContext->extra_hw_frames = EXTRA_HW_FRAMES;
@@ -1012,7 +1069,7 @@ static int64_t GetFramePts(AVFrame* aFrame) {
   return aFrame->pkt_pts;
 #endif
 }
-
+//记录解码时间的日志方法
 void FFmpegVideoDecoder<LIBAV_VER>::UpdateDecodeTimes(TimeStamp aDecodeStart) {
   mDecodedFrames++;
   float decodeTime = (TimeStamp::Now() - aDecodeStart).ToMilliseconds();
@@ -1021,6 +1078,11 @@ void FFmpegVideoDecoder<LIBAV_VER>::UpdateDecodeTimes(TimeStamp aDecodeStart) {
       mDecodedFrames;
   FFMPEG_LOG(
       "Frame decode finished, time %.2f ms averange decode time %.2f ms "
+      "decoded %d frames\n",
+      decodeTime, mAverangeDecodeTime, mDecodedFrames);
+
+
+  printf(      "Frame decode finished, time %.2f ms averange decode time %.2f ms "
       "decoded %d frames\n",
       decodeTime, mAverangeDecodeTime, mDecodedFrames);
 #if LIBAVCODEC_VERSION_MAJOR >= 58
@@ -1050,9 +1112,14 @@ void FFmpegVideoDecoder<LIBAV_VER>::UpdateDecodeTimes(TimeStamp aDecodeStart) {
 //大概前面decode和process过程是用的基类的，这里的DoDecode是自己的
 //DecodedData是个队列，解码完成的结果会被包装成图片放到里面
 //这里的DecodedData不是个专门的类，只是个using而已
+//进行解码过程
 MediaResult FFmpegVideoDecoder<LIBAV_VER>::DoDecode(
     MediaRawData* aSample, uint8_t* aData, int aSize, bool* aGotFrame,
     MediaDataDecoder::DecodedData& aResults) {
+
+
+
+  //printf("###############################  test test test on started ##################################################");
   MOZ_ASSERT(mTaskQueue->IsOnCurrentThread());
   AVPacket packet;
   mLib->av_init_packet(&packet);
@@ -1096,6 +1163,7 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::DoDecode(
       default:
         break;
     }
+    //某种日志类？
     mPerformanceRecorder.Start(
         packet.dts,
         nsPrintfCString("FFmpegVideoDecoder(%d)", LIBAVCODEC_VERSION_MAJOR),
@@ -1104,6 +1172,7 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::DoDecode(
 
 #if LIBAVCODEC_VERSION_MAJOR >= 58
   packet.duration = aSample->mDuration.ToMicroseconds();
+  //异步调用FFmpeg
   int res = mLib->avcodec_send_packet(mCodecContext, &packet);
   if (res < 0) {
     // In theory, avcodec_send_packet could sent -EAGAIN should its internal
@@ -1118,6 +1187,7 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::DoDecode(
   if (aGotFrame) {
     *aGotFrame = false;
   }
+  //一个循环，从FFmpeg里等帧
   do {
     if (!PrepareFrame()) {
       NS_WARNING("FFmpeg decoder failed to allocate frame.");
@@ -1149,11 +1219,14 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::DoDecode(
           RESULT_DETAIL("avcodec_receive_frame error: %s", errStr));
     }
 
+    //printf("###############################  test test test ##################################################");
+    //更新解码信息
     UpdateDecodeTimes(decodeStart);
     decodeStart = TimeStamp::Now();
 
     MediaResult rv;
 #  ifdef MOZ_WAYLAND_USE_HWDECODE
+//这里是判断是否硬解失败的地方
     if (IsHardwareAccelerated()) {
       if (mMissedDecodeInAverangeTime > HW_DECODE_LATE_FRAMES) {
         PROFILER_MARKER_TEXT("FFmpegVideoDecoder::DoDecode", MEDIA_PLAYBACK, {},
@@ -1173,6 +1246,7 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::DoDecode(
 
       // If VA-API/V4L2 playback failed, just quit. Decoder is going to be
       // restarted without hardware acceleration
+      //如果硬解播放失败，解码器会在不使用硬解的状态中重启
       if (NS_FAILED(rv)) {
         // Explicitly remove dmabuf surface pool as it's configured
         // for VA-API/V4L2 support.
@@ -1191,6 +1265,7 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::DoDecode(
 
     mPerformanceRecorder.Record(mFrame->pkt_dts, [&](auto& aStage) {
       aStage.SetResolution(mFrame->width, mFrame->height);
+      //这个地方似乎是判断色彩格式的地方
       auto format = [&]() -> Maybe<DecodeStage::ImageFormat> {
         switch (mCodecContext->pix_fmt) {
           case AV_PIX_FMT_YUV420P:
@@ -1226,7 +1301,10 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::DoDecode(
     if (aGotFrame) {
       *aGotFrame = true;
     }
+    //一直循环
   } while (true);
+
+  //小于58，不考虑了吧
 #else
   // LibAV provides no API to retrieve the decoded sample's duration.
   // (FFmpeg >= 1.0 provides av_frame_get_pkt_duration)
@@ -1335,7 +1413,7 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::DoDecode(
   return rv;
 #endif
 }
-
+//获取帧的色彩空间
 gfx::YUVColorSpace FFmpegVideoDecoder<LIBAV_VER>::GetFrameColorSpace() const {
   AVColorSpace colorSpace = AVCOL_SPC_UNSPECIFIED;
 #if LIBAVCODEC_VERSION_MAJOR > 58
@@ -1367,6 +1445,7 @@ gfx::ColorSpace2 FFmpegVideoDecoder<LIBAV_VER>::GetFrameColorPrimaries() const {
   }
 }
 
+//获取帧色彩范围（用于某种准备工作？）
 gfx::ColorRange FFmpegVideoDecoder<LIBAV_VER>::GetFrameColorRange() const {
   AVColorRange range = AVCOL_RANGE_UNSPECIFIED;
 #if LIBAVCODEC_VERSION_MAJOR > 58
@@ -1379,6 +1458,7 @@ gfx::ColorRange FFmpegVideoDecoder<LIBAV_VER>::GetFrameColorRange() const {
   return GetColorRange(range);
 }
 
+//创建图片
 MediaResult FFmpegVideoDecoder<LIBAV_VER>::CreateImage(
     int64_t aOffset, int64_t aPts, int64_t aDuration,
     MediaDataDecoder::DecodedData& aResults) const {
@@ -1490,6 +1570,7 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::CreateImage(
 }
 
 #ifdef MOZ_WAYLAND_USE_HWDECODE
+//获取VAAPI接口的描述
 bool FFmpegVideoDecoder<LIBAV_VER>::GetVAAPISurfaceDescriptor(
     VADRMPRIMESurfaceDescriptor* aVaDesc) {
   VASurfaceID surface_id = (VASurfaceID)(uintptr_t)mFrame->data[3];
@@ -1505,6 +1586,7 @@ bool FFmpegVideoDecoder<LIBAV_VER>::GetVAAPISurfaceDescriptor(
   }
   return true;
 }
+//创建VAAPI图像
 
 MediaResult FFmpegVideoDecoder<LIBAV_VER>::CreateImageVAAPI(
     int64_t aOffset, int64_t aPts, int64_t aDuration,
@@ -1552,6 +1634,8 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::CreateImageVAAPI(
   return NS_OK;
 }
 
+
+//创建V4L2图像
 MediaResult FFmpegVideoDecoder<LIBAV_VER>::CreateImageV4L2(
     int64_t aOffset, int64_t aPts, int64_t aDuration,
     MediaDataDecoder::DecodedData& aResults) {
@@ -1612,6 +1696,7 @@ FFmpegVideoDecoder<LIBAV_VER>::ProcessFlush() {
   return FFmpegDataDecoder::ProcessFlush();
 }
 
+//获取图像的编码格式？
 AVCodecID FFmpegVideoDecoder<LIBAV_VER>::GetCodecId(
     const nsACString& aMimeType) {
 
@@ -1688,6 +1773,7 @@ bool FFmpegVideoDecoder<LIBAV_VER>::IsHardwareAccelerated(
 #endif
 }
 
+//判断视频是否可加速
 #ifdef MOZ_WAYLAND_USE_HWDECODE
 bool FFmpegVideoDecoder<LIBAV_VER>::IsFormatAccelerated(
     AVCodecID aCodecID) const {
@@ -1699,6 +1785,8 @@ bool FFmpegVideoDecoder<LIBAV_VER>::IsFormatAccelerated(
   return false;
 }
 
+//这个是什么？好像我们没有改过
+//看样子像是某种映射关系的描述
 // See ffmpeg / vaapi_decode.c how CodecID is mapped to VAProfile.
 static const struct {
   enum AVCodecID codec_id;
@@ -1780,6 +1868,7 @@ void FFmpegVideoDecoder<LIBAV_VER>::AddAcceleratedFormats(
   }
 }
 
+//可加速
 nsTArray<AVCodecID> FFmpegVideoDecoder<LIBAV_VER>::GetAcceleratedFormats() {
   FFMPEG_LOG("FFmpegVideoDecoder::GetAcceleratedFormats()");
 

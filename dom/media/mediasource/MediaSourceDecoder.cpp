@@ -68,6 +68,8 @@ MediaDecoderStateMachineBase* MediaSourceDecoder::CreateStateMachine(
 }
 
 nsresult MediaSourceDecoder::Load(nsIPrincipal* aPrincipal) {
+
+  //printf("########there is MediaSourceDecoder::Load ,######### ");
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!GetStateMachine());
 
@@ -77,6 +79,7 @@ nsresult MediaSourceDecoder::Load(nsIPrincipal* aPrincipal) {
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
+
   return CreateAndInitStateMachine(!mEnded);
 }
 

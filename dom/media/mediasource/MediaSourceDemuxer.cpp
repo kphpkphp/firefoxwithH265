@@ -276,6 +276,9 @@ MediaSourceTrackDemuxer::MediaSourceTrackDemuxer(MediaSourceDemuxer* aParent,
               : 0)) {
   MOZ_ASSERT(mParent);
   MOZ_ASSERT(mTaskQueue);
+
+  //printf("**************** there is MediaSourceTrackDemuxer  **************************");
+
 }
 
 UniquePtr<TrackInfo> MediaSourceTrackDemuxer::GetInfo() const {

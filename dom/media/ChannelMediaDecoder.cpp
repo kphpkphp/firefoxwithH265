@@ -277,6 +277,9 @@ nsresult ChannelMediaDecoder::Load(nsIChannel* aChannel,
 
   rv = mResource->Open(aStreamListener);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  //printf("############## there is ChannelMediaDecoder::load  #####################");
+
   return CreateAndInitStateMachine(mResource->IsLiveStream());
 }
 
@@ -437,6 +440,8 @@ ChannelMediaDecoder::ComputePlaybackRate(const MediaChannelStatistics& aStats,
 void ChannelMediaDecoder::UpdatePlaybackRate(const PlaybackRateInfo& aInfo,
                                              BaseMediaResource* aResource) {
   MOZ_ASSERT(!NS_IsMainThread());
+
+  //printf("############## there is ChannelMediaDecoder::UpdatePlaybackRate  #####################");
 
   uint32_t rate = aInfo.mRate;
 
