@@ -76,6 +76,7 @@ MediaResult FFmpegDataDecoder<LIBAV_VER>::AllocateExtraData() {
 
 // Note: This doesn't run on the ffmpeg TaskQueue, it runs on some other media
 // taskqueue
+//如果前面硬解创建成功，那么就直接返回了，不会走到这里
 MediaResult FFmpegDataDecoder<LIBAV_VER>::InitDecoder() {
   FFMPEG_LOG("Initialising FFmpeg decoder");
 
@@ -111,8 +112,8 @@ MediaResult FFmpegDataDecoder<LIBAV_VER>::InitDecoder() {
       mCodecParser->flags |= ParserFlags();
     }
   }
+  //将FFmpegDataDecoder自身传递给mCodecContext上下文？不知道做什么用的
   mCodecContext->opaque = this;
-
   InitCodecContext();
   MediaResult ret = AllocateExtraData();
   if (NS_FAILED(ret)) {

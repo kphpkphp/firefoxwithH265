@@ -321,6 +321,7 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::InitVAAPIDecoder() {
 
  //printf("\n pass avcodec_alloc_context3 \n");
 
+  //这个看起来像是失败时清理垃圾用的，这个类看起来像是在生命周期结束时自动执行一个方法
   auto releaseVAAPIdecoder = MakeScopeExit([&] {
     if (mVAAPIDeviceContext) {
       mLib->av_buffer_unref(&mVAAPIDeviceContext);
@@ -376,6 +377,7 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::InitVAAPIDecoder() {
   }
 
   FFMPEG_LOG("  VA-API FFmpeg init successful");
+  //这个release看了下，像是让这个方法失活，这个类看起来是在生命周期结束时自动执行一个方法的
   releaseVAAPIdecoder.release();
   return NS_OK;
 }
@@ -679,6 +681,7 @@ RefPtr<MediaDataDecoder::InitPromise> FFmpegVideoDecoder<LIBAV_VER>::Init() {
     if (NS_SUCCEEDED(rv)) {
       //确实，当前的问题就是InitVAAPIDecoder失败
      // printf("\n InitVAAPIDecoder success!!! \n");
+     //这里直接return了，不会执行后面的InitDecoder()
       return InitPromise::CreateAndResolve(TrackInfo::kVideoTrack, __func__);
     }
 #  endif  // MOZ_ENABLE_VAAPI
@@ -697,7 +700,7 @@ RefPtr<MediaDataDecoder::InitPromise> FFmpegVideoDecoder<LIBAV_VER>::Init() {
     mEnableHardwareDecoding = false;
   }
 #endif  // MOZ_WAYLAND_USE_HWDECODE
-
+  //如果硬解成功创建解码器，就直接return了，不会走到这里
   rv = InitDecoder();
   if (NS_SUCCEEDED(rv)) {
     return InitPromise::CreateAndResolve(TrackInfo::kVideoTrack, __func__);
@@ -1052,6 +1055,7 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitCodecContext() {
     decode_threads = 2;
   }
 //经测试，硬解不会走到这里，软解时AVC、HEVC都会走到这里
+//上面那条应该不对，为什么？这里看不出排除这个方法的逻辑
   //printf("the decode_threads is %d ",decode_threads);
 
   if (mLowLatency) {
@@ -1097,6 +1101,7 @@ nsCString FFmpegVideoDecoder<LIBAV_VER>::GetCodecName() const {
 
 
 #ifdef MOZ_WAYLAND_USE_HWDECODE
+//这个方法在InitVAAPIDecoder()中被调用，是创建硬件上下文用的，这个地方在AVC的时候会做一个额外帧的东西，不知道是做什么用的
 void FFmpegVideoDecoder<LIBAV_VER>::InitHWCodecContext(bool aUsingV4L2) {
   mCodecContext->width = mInfo.mImage.width;
   mCodecContext->height = mInfo.mImage.height;
@@ -1110,6 +1115,8 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitHWCodecContext(bool aUsingV4L2) {
 
   if (mCodecID == AV_CODEC_ID_H264) {
     //硬件加速需要额外的信息吗？
+    //不对，这个extra_hw_frames是表示可以分配的额外帧的数量，这个数量会影响硬解的性能
+    //HEVC确实可以在这里改，看看这个mExtraData是怎么搞到的
     mCodecContext->extra_hw_frames =
         H264::ComputeMaxRefFrames(mInfo.mExtraData);
   } else {
@@ -1348,6 +1355,8 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::DoDecode(
       *aGotFrame = true;
     }
   } while (true);
+
+  //这个不会是版本太低的情况吧
 #else
   // LibAV provides no API to retrieve the decoded sample's duration.
   // (FFmpeg >= 1.0 provides av_frame_get_pkt_duration)
@@ -1871,6 +1880,7 @@ static const char* VAProfileName(VAProfile aVAProfile) {
 
 // This code is adopted from mpv project va-api routine
 // determine_working_formats()
+//GPT说，这个方法是在检查当前的硬件是否支持AV_PIX_FMT_YUV420P和AV_PIX_FMT_NV12这两种像素格式
 void FFmpegVideoDecoder<LIBAV_VER>::AddAcceleratedFormats(
     nsTArray<AVCodecID>& aCodecList, AVCodecID aCodecID,
     AVVAAPIHWConfig* hwconfig) {
@@ -1949,9 +1959,10 @@ nsTArray<AVCodecID> FFmpegVideoDecoder<LIBAV_VER>::GetAcceleratedFormats() {
   if (MOZ_UNLIKELY(maxProfiles <= 0 || maxEntryPoints <= 0)) {
     return supportedHWCodecs;
   }
-
+  //这个应该是VAAPI支持的全部编码格式列表
   profiles = new VAProfile[maxProfiles];
   int numProfiles = 0;
+  //获取这个列表
   VAStatus status = vaQueryConfigProfiles(mDisplay, profiles, &numProfiles);
   if (status != VA_STATUS_SUCCESS) {
     FFMPEG_LOG("  vaQueryConfigProfiles() failed %s", vaErrorStr(status));
